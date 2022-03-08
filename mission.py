@@ -8,7 +8,7 @@ from arcade_stuka import ArcadeMission
 
 class Mission:
     """ Class to hold data and methods associated with mission file handling and some processing
-        not directly associated with environmental data (e.g., weather conditions)  """
+        not directly associated with environmental data like weather conditions  """
 
     def __init__(self, base_dir, mission_dir, mission_basename):
         self.base_dir = base_dir  # IL-2 base directory
@@ -40,7 +40,7 @@ class Mission:
         self.user_initiated_reset = False  # whether or not user inputted the reset command
         self.new_mission = False  # whether or not a new map needs to reloaded (or reset to its intial state)
         self.run_resaver = False  # whether or not resasver.exe needs to be run to create a mission binary file
-        self.old_time = self.time_now = time.time()  # time stamps
+        self.old_time = time.time()  # time stamp for whether or not mission needs to be reset back to mission index 0
 
         """ The raw IL-2 mission files are stored in the "available missions" sub directory.  Parse this directory
          and store in teh AvailableMissions class object """
@@ -141,7 +141,8 @@ class Mission:
 
     def load_new_mission(self):
         """ selects a mission from the available missions directory and copies and renames these files to
-            the appropriate directories and file names using the generic mission basename (e.g., scg_training). """
+            the appropriate directories and filenames using the generic mission basename
+            called by DServer.exe (e.g., scg_training). """
         """ copy all new mission files to main directory and rename them to the mission basename (e.g., 
             x.Mission -> scg_training.Mission, etc.) """
         new_mission_files = glob.glob(self.available_missions[self.mission_index].filename + ".*")
@@ -215,12 +216,33 @@ class Mission:
         """ tell DServer to initiate a reset"""
         rc.send("serverinput reset")
 
-    def check_reset_to_base(self, reset_time_amount):
-        """ Reset to base mission if too much player inactivity """
+    def check_reset_to_base_mission(self, reset_time_amount):
+        """ Reset to base mission (index = 0) if too much player inactivity """
         if self.mission_index != 0:
             time_now = time.time()
-            if (self.old_time + reset_time_amount) < self.time_now and self.mission_index != 0:
+            if time_now > (self.old_time + reset_time_amount):
                 print("Resetting server to default mission due to player inactivity.")
                 self.mission_index = 0
-                self.load_new_mission()
+                self.new_mission = True  # will trigger new mission load
+                # self.arcade_game = self.is_current_mission_arcade()
+                # self.load_new_mission()
                 self.old_time = time_now
+
+
+
+""" run mission stand alone functions here """
+def main():
+    """ update the server mission (e.g., scg_training.msnbin and associated files)  to the one specified by index of the available missions directory """
+    from constants import IL2_BASE_DIR, IL2_MISSION_DIR, MISSION_BASENAME
+    mission = Mission(IL2_BASE_DIR, IL2_MISSION_DIR, MISSION_BASENAME)
+    print("num missions = ", mission.num_missions)
+    for i, m in enumerate(mission.available_missions):
+        print(i, m.filename)
+    #
+    mission.mission_index = 5
+    mission.load_new_mission()
+
+
+
+if __name__ == "__main__":
+    main()

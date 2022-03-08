@@ -22,12 +22,14 @@ class GameResult:
         self.timedate = datetime.now()  # timestamp used for sorting purposes
         self.date_str = self.timedate.strftime("%Y-%m-%d")  # date to display on high scores page
 
-    def print(self):
+    def print(self, detailed_score):
         print(f"alias={self.alias}",
               # f" playerID={self.player_id},"
               f" plane={self.plane}, score={self.score},"
               # f"\ndetail_score={self.detailed_scoring},"
               f" date={self.timedate}")
+        if detailed_score:
+            print(self.detailed_scoring, '\n')
 
 
 def read_scores():
@@ -43,14 +45,14 @@ def write_scores(scores):
         pickle.dump(scores, f)
 
 
-def print_scores(scores):
+def print_scores(scores, detailed_scoring=False):
     if not scores:
         print("No scores present.")
         return
 
     for i, s in enumerate(scores):
         print(f"{i:>2}:", end='')
-        s.print()
+        s.print(detailed_scoring)
 
 
 def get_high_scores(scores, num=5, f=lambda s: s.score, reverse_input=True):
@@ -67,18 +69,22 @@ def get_plane_scores(scores, planetype):
 
 def get_unique_last_players(scores_, num_last_plays):
     """ Return list of scores of the last UNIQUE individual players you played last """
-    last_scores = sorted(scores_, key=lambda s1: s1.timedate, reverse=True)
+    last_scores = sorted(scores_, key=lambda s1: s1.timedate, reverse=True)  # sort by last date played first
+
     if num_last_plays > len(last_scores):
-        num_last_plays = len(scores_)
+        num_last_plays = len(last_scores)
     last_players = []
-    name = []
-    for i, s in enumerate(last_scores):
-        if s.alias in name:
+    names = []
+    num = 0
+    for s in last_scores:
+        if s.alias in names:
             continue
         else:
-            name.append(s.alias)
+            names.append(s.alias)
             last_players.append(s)
-        if i >= num_last_plays:
+            num += 1
+
+        if num >= num_last_plays:
             break
     return last_players
 
@@ -131,7 +137,7 @@ def compute_score(player, vehicles):
         message = f"{player.alias}' scores "
     else:
         message = f"{player.alias}'s scores "
-    message += 'for STUKA ATTACK!\n'
+    message += f"for STUKA ATTACK! flying a {player.plane_type}\n"
     message += f"{'-'*3}\n"
 
     score = 0
@@ -188,7 +194,7 @@ def compute_score(player, vehicles):
     elif player.plane_damaged:
         plane_dmg = round(player.plane_damaged * points['plane_destroyed'] * points['dmg_mult']) * points['score_multi']
         # pscore_str += f"{player.plane_type:>26} ({player.plane_damaged * 100:>02.0f}%): {plane_dmg:>6.0f} points\n"
-        pscore_str += f"{player.plane_type} ({player.plane_damaged * 100:>02.0f}%): {plane_dmg} points\n"
+        pscore_str += f"{player.plane_type} ({player.plane_damaged * 100:>.0f}%): {plane_dmg} points\n"
 
         score += plane_dmg
 
@@ -256,11 +262,11 @@ def html_write_scores():
         return table_str
     """ end helper functions """
 
+    """ html_write_scores main() """
     # Read HTML file
     with open(HTML_FILE, 'r') as f:
         html_str = f.read()
 
-    # html_write_scores main()
     scores = read_scores()
 
     """
@@ -310,15 +316,22 @@ def upload_html_to_web(source, destination):
     return True, response['message']
 
 
+""" Run individual or custom scoring functions here """
 def main():
-    pass
+    # pass
     # remove_last_score()
     # html_write_scores()
     # scores = read_scores()
-    # top_scores = get_high_scores(scores, 5)
-    # print_scores(scores)
+    #top_scores = get_high_scores(scores, 5)
+    #print_scores(top_scores)
 
-    # scores = read_scores()
+    scores = read_scores()
+    # for s in scores:
+    #     s.detailed_scoring = re.sub(r'\(0', r'(', s.detailed_scoring)
+    #     print(s.detailed_scoring)
+    # write_scores(scores)
+    # html_write_scores()
+    #print_scores(scores, True)
     # last_scores = get_unique_last_players(scores, 5)
     # print(f"\n----Last players----")
     # print_scores(last_scores)
@@ -347,6 +360,6 @@ def main():
     # uploaded, msg = upload_html_to_web(CSS_FILE, 'style.css')
 
 
-""" Run individual scoring functions here """
+
 if __name__ == "__main__":
     main()

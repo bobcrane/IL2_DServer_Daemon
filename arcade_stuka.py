@@ -3,7 +3,8 @@ import os
 import shutil
 import re
 
-from constants import MISSION_LOG_BACKUP_DIR, COPY_MISSION_LOGFILES, MISSION_FILENAME,  points, FAKE_PREFIX
+from constants import MISSION_LOG_BACKUP_DIR, COPY_MISSION_LOGFILES, MISSION_FILENAME, points, FAKE_PREFIX, \
+    HIGHSCORES_URL
 from highscores import compute_score, enter_score, html_write_scores
 from mission_objectives import get_mission_objectives
 
@@ -12,7 +13,7 @@ def delete_log_file(copy_file, log_file, backup_dir=MISSION_LOG_BACKUP_DIR):
     """ delete log file or copy it to a backup directory if keep_file is True """""
     if copy_file:  # copy chatlogs files to bak dir
         file_size = os.path.getsize(log_file)
-        # preserve only log filess with meaningful content and not meaningless ones that contain
+        # preserve only log files with meaningful content and not meaningless ones that contain
         # only an "Atype 15:" log version message of size 21 bytes
         if file_size > 0 and not file_size == 21:
             try:
@@ -35,7 +36,7 @@ def delete_multiple_logs_files(keep_files, log_files_wildcard, backup_dir=MISSIO
 def two_points_close(p1, p2, error):
     """
         Determines if two object positions within IL-2 mission are close enough in distance to each other
-        Input:  'x,y,z' string (e.g., '29470.2305,108.5850,21137.8516') and error amount (float)
+        Input:  two 'x,y,z' strings (e.g., '29470.2305,108.5850,21137.8516') and error amount (float)
         Returns: True or False
     """
     from math import dist
@@ -99,8 +100,8 @@ class Vehicle:
         self.run_id = -1  # run time id of object written to the mission  log files
         self.damage = 0.0  # damage percentage (0.0 to 1.0)
         self.destroyed = False
-        # player was responsible for at least part of the damage, if so then award kill for fully destroyed vehicle>
-        self.player_damaged = False
+        self.player_damaged = False  # player did damage to vehicle
+        self.player_killed = False  # player dealt killing blow to vehicle
         self.score = points[self.type]
 
     def print(self):
@@ -157,9 +158,9 @@ class ArcadeMission:
 def process_arcade_game(arcade, mission_log_file_wildcard, keep_log_files, r_con):
     """ Parse Mission log files and run arcade """
     mlog_files = glob.glob(mission_log_file_wildcard)
-    mlog_files.sort(key=lambda x: os.path.getmtime(x))  # sort by creation time/date to ensure processing from old to new
-    for m in mlog_files:
-        with open(m, 'r', encoding="UTF-8") as file:
+    mlog_files.sort(key=lambda x: os.path.getmtime(x))  # sort by creation timestamp to ensure processing from old to new
+    for current_logfile in mlog_files:
+        with open(current_logfile, 'r', encoding="UTF-8") as file:
             lines = file.readlines()
 
         # player_exited is used to make sure that the rest of the log file is processed after a
@@ -185,7 +186,7 @@ def process_arcade_game(arcade, mission_log_file_wildcard, keep_log_files, r_con
                     arcade.vehicles, arcade.veh_lookup = get_vehicles(MISSION_FILENAME)  # get enemy target vehicles with lookup
                     arcade.player = create_player(line)
                     arcade.running = True
-                    log_str = re.search(r'(?<=missionReport)[\s\S]+(?=.txt)', m).group()
+                    log_str = re.search(r'(?<=missionReport)[\s\S]+(?=.txt)', current_logfile).group()
                     print(f"Player {arcade.player.alias} started mission in log: {log_str} flying {arcade.player.plane_type}.")
                     # player.print()
 
@@ -193,7 +194,7 @@ def process_arcade_game(arcade, mission_log_file_wildcard, keep_log_files, r_con
                 pilot_char_id = int(re.search(r'(?<= PID:)\d+(?= BUL)', line).group())
                 if pilot_char_id == arcade.player.char_id:
                     arcade.running = False
-                    log_str = re.search(r'(?<=missionReport)[\s\S]+(?=.txt)', m).group()
+                    log_str = re.search(r'(?<=missionReport)[\s\S]+(?=.txt)', current_logfile).group()
                     print(f"Player {arcade.player.alias} exited mission in log:  {log_str}\n")
                     player_exited = True  # make sure all messages in this file continue to be processed
 
@@ -226,20 +227,32 @@ def process_arcade_game(arcade, mission_log_file_wildcard, keep_log_files, r_con
                 target_id = int(re.search(r'(?<= TID:)\d+(?= POS)', line).group())
                 # print(f"Damage--amount: {dmg_amount} attacker_id: {attacker_id}  target_id: {target_id} in file {m}")
 
-                if arcade.player.plane_id:  # process only if player plane defined
+                if arcade.player.plane_id:  # process only if player plane defined (i.e., arcade is running)
                     if target_id == arcade.player.plane_id:  # player plane received damage -- only update player damage
                         arcade.player.plane_damaged += dmg_amount
                     elif target_id == arcade.player.char_id:  # player human pilot character received damage
                         arcade.player.damaged += dmg_amount
-                    elif attacker_id == arcade.player.plane_id:  # player did damage to a vehicle
+                    else:  # process vehicle damage
                         try:
                             vehicle = arcade.veh_runtime_lookup[target_id]
-                        except KeyError:
+                        except KeyError:  # vehicle is not one we care to score like a friendly unit
                             # print(f"KeyError from key: {target_id}")
                             pass
                         else:
-                            vehicle.damage += dmg_amount
-                            vehicle.player_damaged = True
+                            if attacker_id == arcade.player.plane_id:  # player did damage to a vehicle
+                                vehicle.damage += dmg_amount
+                                vehicle.player_damaged = True
+                                # print(f"======= Player (#{attacker_id}) damaged  {vehicle.type} (#{target_id}) by {dmg_amount}.  Total damage is {vehicle.damage:.2}.=========")
+                            elif attacker_id == -1:  # vehicle is doing self damage based on a pervious attack
+                                print(f"==Self damage: {vehicle.type} (#{target_id}) by {dmg_amount}.  Total damage is {vehicle.damage:.2}.==")
+                                vehicle.damage += dmg_amount
+
+                                # print(f"====Vehicle {target_id} of type {vehicle.type} is doing self damage of {dmg_amount}=========")
+                            else:  # another unit is doing damage to vheicle
+                                #  apparently, this coniditon is never reached because damage is only registered as coming from a player or self damage (-1)
+                                print(f"Error: =======Attacker ID = {attacker_id} damaged {target_id} of type {vehicle.type} by {dmg_amount}=========")
+
+
 
             elif 'AType:3 ' in line:  # attacker ID killed target ID
                 # print(f"kill: {line}", end='')
@@ -259,27 +272,31 @@ def process_arcade_game(arcade, mission_log_file_wildcard, keep_log_files, r_con
                         vehicle.destroyed = True
                         if attacker_id == arcade.player.plane_id:  # player did damage to a vehicle
                             vehicle.player_damaged = True
+                            vehicle.player_killed = True
+                            print(f"player killed vehicle (#{target_id}) of type: {vehicle.full_name}")
+                        else:
+                            print(f"OTHER ID (#{attacker_id}) killed vehicle {vehicle.full_name} (#{target_id}) in file {current_logfile}")
 
-        if not keep_log_files:
-            delete_log_file(COPY_MISSION_LOGFILES, m)
+        delete_log_file(COPY_MISSION_LOGFILES, current_logfile)
 
         if player_exited:
             """ compute damage and update high scores database """
             score, message = compute_score(arcade.player, arcade.vehicles)
             print(message)
             if r_con:  # write scores; else ignore for debugging
-                r_con.send_msg(message)  # send score to console
-                r_con.send_msg(f"Type {FAKE_PREFIX}reset to play again if mission not already resetting.")
+                r_con.send_msg(f"===  Total score for {arcade.player.alias} is {score}.  ===")
+                r_con.send_msg(f"Go to {HIGHSCORES_URL} for detailed scoring information.")
+                r_con.send_msg(f"Type {FAKE_PREFIX}reset to play another round.")
                 enter_score(score, message, arcade.player)  # store score in scoring database
                 html_write_scores()  # write scores to html file and upload to web
 
 
 def main():
-    """ testing & debugging code """
+    """ testing & debugging code which parses mission log files for arcade game processing """
     from mission import Mission
     from constants import IL2_BASE_DIR, IL2_MISSION_DIR, MISSION_BASENAME
     mission = Mission(IL2_BASE_DIR, IL2_MISSION_DIR, MISSION_BASENAME)
-    file_wildcard = r'\\JUNEKIN\il2\data\logs\mission\bak5\m*.txt'
+    file_wildcard = r'\\JUNEKIN\il2\data\logs\mission\bak\m*.txt'
     if mission.arcade_game:
         process_arcade_game(mission.arcade, file_wildcard, True, None)
 

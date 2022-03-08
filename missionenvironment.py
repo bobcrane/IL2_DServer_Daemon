@@ -50,8 +50,8 @@ class MissionEnvironment:
         self.pressure = 760  # pressure in mmHg; 760 is standard
         self.min_pres, self.max_pres = 370, 810  # min/max pressure in mmHg (integer)
 
-        self.turbulence = 0  # strength of turbulence in mission.  integer between 0 m/s and 10 m/s
-        self.min_turb, self.max_turb = 0, 10  # turbulence from 0 m/s to 10 m/s (integer)
+        self.turbulence = 0.0  # strength of turbulence in mission.  float between 0.0 m/s and 10.0 m/s
+        self.min_turb, self.max_turb = 0.0, 10.0  # turbulence from 0 m/s to 10 m/s (integer)
 
         self.haze = 0.0  # amount of haze in mission which limits visibility to the horizon.  Float between 0.0 and 1.0
         self.min_haze, self.max_haze = 0.0, 1.0  # haze in mission (floating point value)
@@ -156,7 +156,7 @@ class MissionEnvironment:
     def update_turbulence(self, turbulence_str):
         """ Updates turbulence in mission file string """
         try:
-            turbulence = int(turbulence_str)
+            turbulence = float(turbulence_str)
         except ValueError:
             self.console_msg = f"Input of '{turbulence_str}' is not a valid turbulence speed. Input only a single" \
                                f" value between {self.min_turb} and {self.max_turb} m/s."
@@ -170,7 +170,7 @@ class MissionEnvironment:
                 self.turbulence = turbulence
                 self.console_msg = f"Mission turbulence will be set to {turbulence} m/s."
                 self.mission_data = re.sub(r"(?<=Turbulence = )-*\d+(?=;)", str(turbulence), self.mission_data)
-                self.briefing_data = re.sub(r"(?<=Turbulence:</b> )\d+(?= m/s)", str(turbulence), self.briefing_data)
+                self.briefing_data = re.sub(r"(?<=Turbulence:</b> )\d+(?= m/s)", f"{turbulence:.1f}", self.briefing_data)
                 self.mission_files_updated = True
                 return True
 

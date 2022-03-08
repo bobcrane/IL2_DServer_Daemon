@@ -25,10 +25,10 @@ DSERVER_PASSWORD = 's1'
 
 # log file booleans
 COPY_MISSION_LOGFILES = True
-KEEP_CHAT_LOGS = False  # whether or not to preserve the chat log files
+KEEP_CHAT_LOGS = True  # whether or not to preserve the chat log files
 
 # misc constants
-SLEEP_TIME = 4  # amount of time for this script to sleep in between dumping chat log file and parsing that file
+SLEEP_TIME = 3  # amount of time for this script to sleep in between dumping chat log file and parsing that file
 RESET_TIME = 2 * 60 * 60  # time in seconds to possibly reload the default mission after player inactivity; 2 hours
 CMD_PREFIX = '$$'  # the escape character sequence indicating a user command has been entered (e.g., $$time 23)
 # same as above but use to prevent parser from interpreting printed help messages as user commands causing loops
@@ -51,9 +51,9 @@ NUM_HIGH_SCORES = 5  # number of high scores to show for the other high scores t
 arcade_planes = ('Ju 87 D-3', 'Hs 129 B-2', 'Bf 110 G-2')
 
 plane_nicknames = {
-    'Ju 87 D-3': 'Kanonenvogel',
-    'Hs 129 B-2': 'Panzerknacker',
-    'Bf 110 G-2': 'Kampfzerstorer'
+    'Ju 87 D-3': 'Ju 87 D-3 Kanonenvogel',
+    'Hs 129 B-2': 'Hs 129 B-2 Panzerknacker',
+    'Bf 110 G-2': 'Bf 110 G-2 Kampfzerstorer'
 }
 
 points = {
@@ -74,3 +74,5 @@ points = {
     'bt7m': 200,
     'm3a1': 100
 }
+
+HIGHSCORES_URL = 'https://il2arcade.neocities.org'

@@ -119,8 +119,8 @@ class RemoteConsoleClient:
     def response_lookup(self, num):
         return self.Dserver_response_dict[num]
 
-    def send_msg(self, message):
+    def send_msg(self, message, delay=0.4):
         """ Sends long message to console slowly to circumvent anti-spam filter """
         for s in message.split('\n'):
             self.send("chatmsg 0 0 " + s)
-            time.sleep(.2)  # cannot flood remote console with messages too fast or lines get dropped
+            time.sleep(delay)  # cannot flood remote console with messages too fast or lines fail to print

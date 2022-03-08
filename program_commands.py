@@ -38,7 +38,7 @@ def define_commands(r_con, env, mis):
                        f"Sets time of current mission to an integer value between {env.min_time} and "
                        f"{env.max_time} hours.\n{FAKE_PREFIX}time 14 -- set mission hour to 14:00 hours"))
     prog_cmds.append(
-        ProgramCommand(["wind_layers", "winds", "w"], getattr(env, "update_wind"), "environmental",
+        ProgramCommand(["wind", "winds", "w"], getattr(env, "update_wind"), "environmental",
                        f"Sets the mission winds for {env.num_windalts} altitudes using the wind_speed@direction "
                        f"string format. Enter between one and {env.num_windalts} values.\n{FAKE_PREFIX}weather 5@130"
                        f"-- sets all five wind layers to 5 m/s at 130°\n{FAKE_PREFIX}w 10@240 12@255 15@270 -- 0m: 10"
@@ -71,9 +71,9 @@ def define_commands(r_con, env, mis):
                        f" No arguments.\n"))
     prog_cmds.append(
         ProgramCommand(["list_missions", "lm"], getattr(mis, "list_missions"), "procedural",
-                       f"Lists the available training missions. No arguments.\n"))
+                       f"Lists all available missions. No arguments.\n"))
     prog_cmds.append(
-        ProgramCommand(["set_mission", "mission", "sm"], getattr(mis, "update_mission"), "procedural",
+        ProgramCommand(["set_mission", "load", "sm"], getattr(mis, "update_mission"), "procedural",
                        f"Sets the next mission to one of the missions given by 'list_missions' command.\n"
                        f"Provide an integer value between 0 and {mis.num_missions - 1}"
                        f"\n{FAKE_PREFIX}sm 1 -- Sets the mission to the mission #1."))
@@ -96,6 +96,10 @@ def process_user_commands(user_commands, r_con, env, mission, prog_cmds, help_st
     """ Process pilot inputted commands """
 
     for command in user_commands:
+        if mission.new_mission or mission.user_initiated_reset:  # flush any remaining commands after reset initiated
+            print("reset ordered")
+            break
+
         # separate command and any following arguments into two strings: command and arguments
         cmd = command.split(' ', 1)
         cmd_word = cmd[0]
@@ -137,35 +141,35 @@ def process_user_commands(user_commands, r_con, env, mission, prog_cmds, help_st
             r_con.send_msg(f"System error:  Command '{command}' not recognized.")
             print(f"System error: Command '{cmd_word}' not recognized.")
 
-        """ Process three different types of mission resets """
-        if mission.new_mission:  # 1
-            mission.load_new_mission()
-            r_con.send_msg("System: Loading new scenario and resetting....")
-            mission.reset_mission(r_con)
+    """ Process three different types of mission resets """
+    if mission.new_mission:  # 1
+        mission.load_new_mission()
+        r_con.send_msg("System: Loading new scenario and resetting....")
+        mission.reset_mission(r_con)
 
-            # read in new mission data to environment
-            env.open_mission_file(mission.working_mission_filename)
-            env.open_briefing_file(mission.working_briefing_filename)
-            mission.new_mission = mission.run_resaver = env.mission_files_updated = False
-            mission.arcade_game = mission.is_current_mission_arcade()
-            if mission.arcade_game:
-                mission.arcade = ArcadeMission(mission.working_mission_filename, mission.working_briefing_filename)
-            else:
-                mission.arcade = None
+        # read in new mission data to environment
+        env.open_mission_file(mission.working_mission_filename)
+        env.open_briefing_file(mission.working_briefing_filename)
+        mission.new_mission = mission.run_resaver = env.mission_files_updated = False
+        mission.arcade_game = mission.is_current_mission_arcade()
+        if mission.arcade_game:
+            mission.arcade = ArcadeMission(mission.working_mission_filename, mission.working_briefing_filename)
+        else:
+            mission.arcade = None
 
 
-        elif mission.run_resaver and mission.user_initiated_reset:  # 2
-            # save mission and briefing string data to their respective files in the working directory for processing
-            env.write_mission_file(mission.working_mission_filename)
-            env.write_briefing_file(mission.working_briefing_filename)
+    elif mission.run_resaver and mission.user_initiated_reset:  # 2
+        # save mission and briefing string data to their respective files in the working directory for processing
+        env.write_mission_file(mission.working_mission_filename)
+        env.write_briefing_file(mission.working_briefing_filename)
 
-            mission.resaver(r_con)
-            mission.reset_mission(r_con)
-            mission.run_resaver = mission.user_initiated_reset = env.mission_files_updated = False
+        mission.resaver(r_con)
+        mission.reset_mission(r_con)
+        mission.run_resaver = mission.user_initiated_reset = env.mission_files_updated = False
 
-        elif mission.user_initiated_reset:  # 3
-            r_con.send_msg("System: Resetting mission....")
-            mission.reset_mission(r_con)
-            mission.user_initiated_reset = False
+    elif mission.user_initiated_reset:  # 3
+        r_con.send_msg("System: Resetting mission....")
+        mission.reset_mission(r_con)
+        mission.user_initiated_reset = False
 
 

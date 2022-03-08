@@ -13,9 +13,10 @@ from missionenvironment import MissionEnvironment  # handles weather info (e.g.,
 from program_commands import define_commands, process_user_commands  # program commands user can call
 from help import get_help_message  # help related functions
 from player import Player, read_player_list  # player database methods; import Player so pickle loads/saves correctly
-from chatlogs import process_chatlogs  # functions to process chat logs
+from chatlogs import process_chatlogs, remove_chat_logs  # functions to process chat logs
 from arcade_stuka import ArcadeMission, process_arcade_game, delete_multiple_logs_files
-from highscores import GameResult  # import so pickle loads/saves correctly
+# from highscores import GameResult  # import so pickle loads/saves correctly
+import glob
 
 if __name__ == "__main__":
     print("SCG_Limbo's DServer Daemon")
@@ -32,11 +33,14 @@ if __name__ == "__main__":
     """ read player database containing player aliases and IL-2 IDs """
     player_list = read_player_list(IL2_PLAYER_LIST_FILE)
 
+    """ misc init """
     iteration = 0  # number of times main while loop has run
 
-    """ Establish connection to DServer  """
+    """ Establish connection to DServer and flush chat logs so any previous commands are not processed """
     while not r_con.connect():  # until connect
         time.sleep(2)
+    r_con.send(f"cutchatlog")  # tell Dserver to dump chat log files
+    remove_chat_logs(glob.glob(CHATLOG_FILES_WILDCARD))
 
     """ daemon parser -- run continuously until manual program termination """
     while True:
@@ -44,19 +48,22 @@ if __name__ == "__main__":
         user_commands = process_chatlogs(CHATLOG_FILES_WILDCARD, r_con, mission, player_list)
         process_user_commands(user_commands, r_con, env, mission, program_cmds, help_str)
 
+        """ process arcade game """
         if mission.arcade_game:
             process_arcade_game(mission.arcade, MISSION_LOGS_WILDCARD, False, r_con)
         else:
             delete_multiple_logs_files(False, MISSION_LOGS_WILDCARD)  # absolutely no need keep mission logs
 
-        """ print to console showing program progress """
+        """ print to python console program progress """
         iteration += 1
-        if not iteration % 80:
+        if not (iteration % 80):
             now = datetime.now()
             current_time = now.strftime("%H:%M:%S")
-            print(f"{current_time}: {iteration}/", end='')
+            print(f"{current_time}: {iteration}")
 
         """ see if mission should be reset to base mission due to player inactivity """
-        mission.check_reset_to_base(RESET_TIME)
+        mission.check_reset_to_base_mission(RESET_TIME)
+
 
         time.sleep(SLEEP_TIME)  # sleep to reduce cpu utilization
+

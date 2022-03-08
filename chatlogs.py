@@ -10,11 +10,16 @@ from player import Player, print_player_list, update_player_list, write_player_l
 def remove_chat_log_file(f):
     try:
         os.remove(f)
+        # print("removed ", f)
     except PermissionError:  # DServer.exe is using file
+        # print("in permission error", f)
         pass
 
 
 def remove_chat_logs(files):
+    """ files = list of filenames """
+    # print(files)
+    # time.sleep(.5)  # pauseto ensure file lockout has time to be released for deletion
     for f in files:
         if KEEP_CHAT_LOGS:  # copy chatlogs files to bak dir
             if os.path.getsize(f) > 0:  # preserve only logs with content in them
@@ -43,6 +48,7 @@ def process_chatlogs(files_wildcard, r_con, mission, player_list):
 
     r_con.send(f"cutchatlog")  # tell Dserver to dump chat log files for reading and processing
 
+
     chatlog_filenames = glob.glob(files_wildcard)
     pilot_connections = []  # list of strings of pilots connecting to server
     user_commands = []  # list of strings of inputted user commands
@@ -53,7 +59,7 @@ def process_chatlogs(files_wildcard, r_con, mission, player_list):
 
         for line in lines:
             if "sysPilotConnected;" in line:
-                mission.old_time = time.time()  # note player activity.
+                mission.old_time = time.time()  # update activity
                 msg = line[5:16] + ': ' + line[line.index(';') + 1:].rstrip() + " connected.\n"
                 print(msg, end='')
                 pilot_connections.append(msg)  # extract time stamp and pilot name only
