@@ -38,12 +38,14 @@ def define_commands(r_con, env, mis):
                        f"Sets time of current mission to an integer value between {env.min_time} and "
                        f"{env.max_time} hours.\n{FAKE_PREFIX}time 14 -- set mission hour to 14:00 hours"))
     prog_cmds.append(
-        ProgramCommand(["wind", "winds", "w"], getattr(env, "update_wind"), "environmental",
-                       f"Sets the mission winds for {env.num_windalts} altitudes using the wind_speed@direction "
-                       f"string format. Enter between one and {env.num_windalts} values.\n{FAKE_PREFIX}weather 5@130"
-                       f"-- sets all five wind layers to 5 m/s at 130°\n{FAKE_PREFIX}w 10@240 12@255 15@270 -- 0m: 10"
-                       f"m/s @ 240°, 500m: 12 m/s @ 255°, 1000m: 15 m/s @ 270°, 2000m: 5 m/s @ 270°, 5000m: "
-                       f"5 m/s @ 270°"))
+        ProgramCommand(["winds", "wind", "w"], getattr(env, "update_wind"), "environmental",
+                       f"Sets the mission winds for {env.num_windalts} altitudes using one or more wind layer strings."
+                       f"Each layer is specified with wind_speed@direction where wind speed is in"
+                       f" m/s and direction is from 0° to 359° (e.g., 6@230) "
+                       f". Enter between 1 and {env.num_windalts} wind layers.\n{FAKE_PREFIX}winds 5@130"
+                       f" -- Sets all five wind layers to 5 m/s at 130°\n{FAKE_PREFIX}w 10@240 12@255 15@270 -- Sets wind layers to:"
+                       f"\n.           0m: 10 m/s @ 240°\n.       500m: 12 m/s @ 255°\n.     1000m: 15 m/s @ 270°\n.     2000m: 15 m/s @ 270°\n.     5000m: "
+                       f"15 m/s @ 270°"))
     prog_cmds.append(
         ProgramCommand(["turbulence", "turb"], getattr(env, "update_turbulence"), "environmental",
                        f"Sets turbulence of current mission to an integer value between {env.min_turb} and "
@@ -110,36 +112,47 @@ def process_user_commands(user_commands, r_con, env, mission, prog_cmds, help_st
 
         # determine if cmd_word is recognized
         found, index = is_cmd_in_program_commands(cmd_word, prog_cmds)
-        if found:
-            print(f"Player command: {cmd_word}:{cmd_arguments}")
-            """Process commands depending on type (e.g., help, environmental, etc. """
-            if prog_cmds[index].command_type == "help":
-                if cmd_arguments:  # user has requested to print help for one or more commands
-                    print_help_for_individual_cmds(r_con, prog_cmds, cmd_arguments)
-                else:  # otherwise print entire help message
-                    r_con.send_msg(help_str)
 
-            elif prog_cmds[index].command_type == "environmental":
-                if mission.arcade_game:
-                    r_con.send_msg("Environmental commands not allowed during arcade play.")
-                    print("Environmental commands not allowed during arcade play.")
-                else:
-                    prog_cmds[index].cmd_method(cmd_arguments)  # all env. methods accept a single string
-                    r_con.send_msg(f"System: {env.console_msg}")
-                    #  if environmental changes have made then resaver.exe needs to run later on mission reset
-                    mission.run_resaver = env.mission_files_updated  # an environment file change requires resaver
-                    print(f"environmental command message:", env.console_msg)
+        if not found:
+            r_con.send_msg(f"System syntax error:  '{cmd_word}' is not a recognized recognized.")
+            print(f"System syntax error:  '{cmd_word}' is not a recognized recognized.")
+            return
 
-            elif prog_cmds[index].command_type == "procedural":
-                prog_cmds[index].cmd_method(cmd_arguments)
-                r_con.send_msg(f"System: {mission.console_msg}")  # print to console the resulting msg
-                print(mission.console_msg)
+
+        print(f"Player command: {cmd_word}:{cmd_arguments}")
+        """Process commands depending on type (e.g., help, environmental, etc. """
+        if prog_cmds[index].command_type == "help":
+            if cmd_arguments:  # user has requested to print help for one or more commands
+                print_help_for_individual_cmds(r_con, prog_cmds, cmd_arguments)
+            else:  # otherwise print entire help message
+                r_con.send_msg(help_str)
+
+        elif prog_cmds[index].command_type == "environmental":
+            if mission.arcade_game:
+                r_con.send_msg("Environmental commands not allowed during arcade play.")
+                print("Environmental commands not allowed during arcade play.")
             else:
-                print("Error: I should never have gotten here during processing commands.")
-                exit(-1)
+                flag = prog_cmds[index].cmd_method(cmd_arguments)  # all env. methods accept a single string
+                """ Append terminal message to remind user to reset mission to affect environmental changes """
+                if env.mission_files_updated and flag:
+                    env.console_msg += " Reset mission to put any environmental changes into effect."
+                r_con.send_msg(f"System: {env.console_msg}")
+                #  if environmental changes have made then resaver.exe needs to run later on mission reset
+                mission.run_resaver = env.mission_files_updated  # an environment file change requires resaver
+                print(f"environmental command message:", env.console_msg)
+
+
+
+
+
+        elif prog_cmds[index].command_type == "procedural":
+            prog_cmds[index].cmd_method(cmd_arguments)
+            r_con.send_msg(f"System: {mission.console_msg}")  # print to console the resulting msg
+            print(mission.console_msg)
         else:
-            r_con.send_msg(f"System error:  Command '{command}' not recognized.")
-            print(f"System error: Command '{cmd_word}' not recognized.")
+            print("Error: I should never have gotten here during processing commands.")
+            exit(-1)
+
 
     """ Process three different types of mission resets """
     if mission.new_mission:  # 1

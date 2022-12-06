@@ -232,14 +232,16 @@ class Mission:
 
 """ run mission stand alone functions here """
 def main():
-    """ update the server mission (e.g., scg_training.msnbin and associated files)  to the one specified by index of the available missions directory """
+    """ update the server mission (e.g., scg_training.msnbin and associated files)  to the one specified by index of the available missions directory
+        useful for force updating the mission the server loads """
     from constants import IL2_BASE_DIR, IL2_MISSION_DIR, MISSION_BASENAME
     mission = Mission(IL2_BASE_DIR, IL2_MISSION_DIR, MISSION_BASENAME)
     print("num missions = ", mission.num_missions)
     for i, m in enumerate(mission.available_missions):
         print(i, m.filename)
     #
-    mission.mission_index = 5
+    mission.mission_index = 0
+    print(f"Loading mission: {mission.mission_index}")
     mission.load_new_mission()
 
 

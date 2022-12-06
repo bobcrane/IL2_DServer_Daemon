@@ -53,8 +53,8 @@ class MissionEnvironment:
         self.turbulence = 0.0  # strength of turbulence in mission.  float between 0.0 m/s and 10.0 m/s
         self.min_turb, self.max_turb = 0.0, 10.0  # turbulence from 0 m/s to 10 m/s (integer)
 
-        self.haze = 0.0  # amount of haze in mission which limits visibility to the horizon.  Float between 0.0 and 1.0
-        self.min_haze, self.max_haze = 0.0, 1.0  # haze in mission (floating point value)
+        self.haze = 0  # amount of haze in mission which limits visibility to the horizon.
+        self.min_haze, self.max_haze = 0, 100  # haze in mission (int percentage value but write to mission file as proportion)
 
         # Wind layer variables
         self.windalts = (0, 500, 1000, 2000, 5000)  # the five predefined wind layer altitudes in IL-2
@@ -136,8 +136,8 @@ class MissionEnvironment:
         try:
             time = int(time_str)
         except ValueError:
-            self.console_msg = f"The input of '{time_str}' is not a valid time. Input only a single value between" \
-                               f" {self.min_time} and {self.max_time} hours."
+            self.console_msg = f"The input of '{time_str}' is not a valid time. Input only a single integer value between" \
+                               f" {self.min_time} and {self.max_time} hours (e.g., 12)."
             return False
         else:
             if time < self.min_time or time > self.max_time:
@@ -169,8 +169,8 @@ class MissionEnvironment:
             else:
                 self.turbulence = turbulence
                 self.console_msg = f"Mission turbulence will be set to {turbulence} m/s."
-                self.mission_data = re.sub(r"(?<=Turbulence = )-*\d+(?=;)", str(turbulence), self.mission_data)
-                self.briefing_data = re.sub(r"(?<=Turbulence:</b> )\d+(?= m/s)", f"{turbulence:.1f}", self.briefing_data)
+                self.mission_data = re.sub(r"(?<=Turbulence = )\d+[.]*[\d+]*(?=;)", f"{turbulence:.1f}", self.mission_data)
+                self.briefing_data = re.sub(r"(?<=Turbulence:</b> )\d+[.]*[\d+]*(?= m/s)", f"{turbulence:.1f}", self.briefing_data)
                 self.mission_files_updated = True
                 return True
 
@@ -197,9 +197,9 @@ class MissionEnvironment:
     def update_haze(self, haze_str):
         """ Updates haze in mission file string -- float value between 0.0 and 1.0 """
         try:
-            haze = float(haze_str)
+            haze = int(haze_str)
         except ValueError:
-            self.console_msg = f"Haze value of '{haze_str}' is not a valid single value between {self.min_haze}" \
+            self.console_msg = f"Haze value of '{haze_str}' is not a valid integer value between {self.min_haze}" \
                                f" and {self.max_haze}."
         else:
             if haze < self.min_haze or haze > self.max_haze:
@@ -207,8 +207,10 @@ class MissionEnvironment:
                 return False
             else:
                 self.haze = haze
-                self.console_msg = f"Haze will be set to a value of {haze}."
-                self.mission_data = re.sub(r"(?<=Haze = )-*\d+(?=;)", str(haze), self.mission_data)
+                self.console_msg = f"Haze will be set to a value of {haze}%."
+                haze_proportion = haze / 100.0
+                self.mission_data = re.sub(r"(?<=Haze = )\d+[.]*[\d+]*(?=;)", f"{haze_proportion:.2f}", self.mission_data)
+                self.briefing_data = re.sub(r"(?<=Haze:</b> )\d+(?=%)", str(haze), self.briefing_data)
                 self.mission_files_updated = True
                 return True
 
@@ -236,8 +238,10 @@ class MissionEnvironment:
                 speed = int(tmp_str[:ipos])
                 direction = int(tmp_str[ipos + 1:])
             except ValueError:
-                self.console_msg = f"Inputted value of '{tmp_str}' is not a valid wind layer.  Enter between one" \
-                                   f" and {self.num_windalts} layers of wind using speed@direction format (e.g., 4@90)."
+                self.console_msg = f"Inputted value of '{tmp_str}' is not a valid wind layer.  Enter between 1" \
+                                   f" and {self.num_windalts} layers of wind using speed@direction format (e.g., 4@90)." \
+                                   f" Also note that there are no spaces around the @ character between the wind speed and direction."
+
                 return False
             else:
                 if not self.windlayers[i].update_speed(speed):

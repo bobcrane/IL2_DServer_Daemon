@@ -40,6 +40,7 @@ if __name__ == "__main__":
     while not r_con.connect():  # until connect
         time.sleep(2)
     r_con.send(f"cutchatlog")  # tell Dserver to dump chat log files
+    time.sleep(2)  # give some time to remove permissions on any previous chat log files for flush in next line
     remove_chat_logs(glob.glob(CHATLOG_FILES_WILDCARD))
 
     """ daemon parser -- run continuously until manual program termination """

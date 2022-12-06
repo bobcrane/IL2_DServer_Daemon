@@ -1,8 +1,9 @@
 """
-    Script that creates multiple multiplayer airfield specifications (i.e., 'fakefieldss') from a source
-    airfield specification (i.e., single German fakefield located at .5k).
-    Created airfields include: parked, runway, 1k, 2k, 3k, 4k, 5k, 6k.
+    Script that creates multiple multiplayer airfield specifications ('fakefieldS' in il-2 scenario editor terminology)
+    from a source airfield specification (i.e., single German fakefield located at .5k).
+    Created airfields include: parked, runway, 1k, 2k, 3k, 4k, 5k, 6k, 7k.
     In addition, script creates corresponding Russian airfields at those altitudes including .5k
+    Useful for creating all airfields which can be imported into a mission later.
 """
 
 import re
@@ -10,8 +11,8 @@ import re
 base_dir = r'J:\SteamLibrary\steamapps\common\IL-2 Sturmovik Battle of Stalingrad\data\Template\bob objects' + '\\'
 mission_filename = base_dir + r'base_fakefield.group'  # IL-2 Mission File
 write_filename = base_dir + 'all_airfields.Group'  # output file
-altitudes = (1000, 2000, 3000, 4000, 5000, 6000)
-alt_names = ('1K', '2K', '3K', '4K', '5K', '6K')
+altitudes = (1000, 2000, 3000, 4000, 5000, 6000, 7000)
+alt_names = ('1K', '2K', '3K', '4K', '5K', '6K', '7K')
 ZPos_offset = 0
 index = 3  # each airfield should have a unique index
 OFFSET = 2
