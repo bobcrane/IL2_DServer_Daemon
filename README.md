@@ -12,3 +12,9 @@ Program allows players/pilots to:
 
 To see the server in action, join the _SCG Arcade and Training_ multiplayer server.  Password is "enjoy" (without quoation marks).
 Here is a list of server commands available to pilots: https://il2arcade.neocities.org/il2serverscript%20commands.pdf
+
+
+todo:
+
+determine whether or not current_working_directory is necessary with new system.
+

@@ -10,7 +10,7 @@ import shutil
 #                  'stalingrad_tanks1',
 #                  'air_test']
 
-mission_names = ['taw_w01']
+mission_names = ['levelbombing']
 
 source_dir = r"J:\SteamLibrary\steamapps\common\IL-2 Sturmovik Battle of Stalingrad\data\Multiplayer\Dogfight\scg multiplayer server"
 dest_dir = r"\\JUNEKIN\il2\data\Multiplayer\Dogfight\scg multiplayer server\available missions"

@@ -1,11 +1,17 @@
 """
  IL2 DServer program constants
- All program constansts are stored in this file with the exception of some additional ones in the Mission class.
+ Important constants are stored in this file with the exception of some additional ones in the Mission class.
 """
 
-IL2_BASE_DIR = r'\\JUNEKIN\il2' + '\\'
+# IL2_BASE_DIR = r'\\JUNEKIN\il2' + '\\'  # Note that network drive paths do not work well with some IL-2 executables like DServer.exe; this path provided here for code debugging.
+IL2_BASE_DIR = r'E:\il2' + '\\'  # where IL-2 files resides
 IL2_MISSION_DIR = IL2_BASE_DIR + r'data\Multiplayer\Dogfight\scg multiplayer server' + '\\'
-MISSION_BASENAME = 'scg_training'  # mission run solely by DServer.exe
+MISSION_BASENAME = 'scg_training'  # basename of the mission files that dserver loads and runs
+
+# DServer.exe associated constants
+IL2_DSERVER_DIR = IL2_BASE_DIR + r'bin\game' + '\\'
+IL2_DSERVER_EXE = 'DServer.exe'
+IL2_DSERVER_CONFIG_FILE = 'test.sds'
 
 # chat log files constants
 CHATLOG_DIR = IL2_BASE_DIR + r'\data\logs\chat' + '\\'  # directory of Il-2 chat log files
@@ -28,11 +34,13 @@ COPY_MISSION_LOGFILES = True
 KEEP_CHAT_LOGS = True  # whether or not to preserve the chat log files
 
 # misc constants
-SLEEP_TIME = 3  # amount of time for this script to sleep in between dumping chat log file and parsing that file
+SLEEP_TIME = 3  # amount of seconds for this script between each iteration (before dumping chatlog)
 RESET_TIME = 2 * 60 * 60  # time in seconds to possibly reload the default mission after player inactivity; 2 hours
-CMD_PREFIX = '$$'  # the escape character sequence indicating a user command has been entered (e.g., $$time 23)
+# RESET_TIME = 2 * 60  # debug reset time -- very short time
+CMD_PREFIX = '$$'  # the command character sequence indicating a user command has been entered (e.g., $$time 23)
 # same as above but use to prevent parser from interpreting printed help messages as user commands causing loops
-FAKE_PREFIX = '\u00A0$$'
+FAKE_PREFIX = '\u00A0$$'  # a space character that (miraculously) defeats il-2 chat anti-spam detection
+BASE_MISSION_NUM = 5  # index of the mission number to use on bootup and dserver reset --usually default mission of 0
 
 # arcade game constants
 MISSION_LOG_DIR = IL2_BASE_DIR + r'data\logs\mission' + '\\'
@@ -42,8 +50,6 @@ HTML_DIR = IL2_MISSION_DIR + 'high scores' + '\\'
 HTML_FILE = HTML_DIR + r'index.html'
 CSS_FILE = HTML_DIR + r'style.css'
 SCORES_DB = HTML_DIR + r'highscores.pickle'
-MISSION_FILENAME = IL2_MISSION_DIR + r'current mission text files' + '\\' + MISSION_BASENAME + r'.mission'
-MISSION_BRIEFING = IL2_MISSION_DIR + r'current mission text files' + '\\' + MISSION_BASENAME + r'.eng'
 
 # arcade game constants
 NUM_LAST_PLAYERS = 5  # number of scores to list for the last unique player table

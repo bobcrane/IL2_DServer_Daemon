@@ -35,6 +35,8 @@ class RemoteConsoleClient:
         self.password = password
         self.client = None
         self.response_string = ""
+        self.comm_flag = None  # stores whether or not dserver communication was successful
+
 
         """ Il-2's remote console returned response dictionary """
         self.Dserver_response_dict = {
@@ -73,17 +75,25 @@ class RemoteConsoleClient:
 
         packet = pack_message(msg)
 
-        completed = False
-        return_code = -1
+        completed = False  # whether or not message was transmitted correctly
+        return_code = -1  # return code provided by dserver after commands issued
+        count = 0
         while not completed or return_code != 1:
+            count += 1
+            # print("wcount = ", while_count)
+            if count > 20:  # communication with dserver is broken; break out of loop\
+                print("COMMS ERROR:  Reached count over 20 in trying to communicate with DServer.")
+                break
+
             try:
                 self.client.send(packet)
                 data = self.client.recv(4096)
                 # print(data)
             except socket.error as e:
-                print(f"Unable to send or receive message to or from Dserver: {e}\nReconnecting...")
-                while not self.connect():  # connect to server--loops indefinitely until connect
-                    time.sleep(3)
+                print(f"Unable to send or receive message to or from Dserver: {e}\nAttempting reconnect...")
+                self.connect()
+                # while not self.connect():  # connect to server--loops indefinitely until connect
+                #     time.sleep(3)
                 continue  # try sending again now above
             else:
                 # obtain return code in Dserver's binary response
@@ -110,8 +120,10 @@ class RemoteConsoleClient:
                     else:
                         completed = True
                 else:
-                    print(f"Dserver code {return_code} trying to send message '{msg}': {self.response_lookup(return_code)}")
-                    time.sleep(2)
+                    print(f"Dserver error {self.response_lookup(return_code)}({return_code})  while sending '{msg}': ")
+                    time.sleep(5)
+
+        self.comm_flag = completed  # store whether or not comms with Dserver was successful
 
     def close(self):
         self.client.close()
@@ -119,7 +131,7 @@ class RemoteConsoleClient:
     def response_lookup(self, num):
         return self.Dserver_response_dict[num]
 
-    def send_msg(self, message, delay=0.4):
+    def send_msg(self, message, delay=0.5):
         """ Sends long message to console slowly to circumvent anti-spam filter """
         for s in message.split('\n'):
             self.send("chatmsg 0 0 " + s)

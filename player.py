@@ -47,7 +47,10 @@ def update_player_list(_player, _player_list):
 
 def print_player_list(_player_list):
     for p in _player_list:
-        print(f"{p.name}, {p.player_id}, {p.profile_id}, {p.aliases}")
+        alias_str = ''
+        for i in p.aliases:
+            alias_str += i + ' '
+        print(f"{p.name:25} {alias_str:35} player_ID: {p.player_id}, profile_ID:, {p.profile_id}")
 
 
 def read_player_list(_filename):

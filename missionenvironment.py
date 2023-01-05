@@ -1,4 +1,4 @@
-""""Environmental classes associated with IL-2 Mission files"""
+""""Environmental weather classes associated with IL-2 Mission files  """
 import re
 from collections import namedtuple
 import glob
@@ -40,26 +40,26 @@ class WindLayer:
 class MissionEnvironment:
     """Class to hold all methods and variables that can be changed in an IL-2 Mission and briefing file data"""
 
-    def __init__(self, mission_filename, briefing_filename, cloud_filenames):
-        self.temperature = 15  # temperature in C; 15 is standard
+    def __init__(self, cloud_filenames):
+        # self.temperature = None  # temperature in C; 15 C is standard
         self.min_temp, self.max_temp = -40, 40  # min/max temp in celsius (integer)
 
-        self.time = 0  # mission time in 24 hour format
+        # self.time = None  # mission time in 24 hour format
         self.min_time, self.max_time = 0, 23  # military time from 0 to 23 hours (integer)
 
-        self.pressure = 760  # pressure in mmHg; 760 is standard
+        # self.pressure = None  # pressure in mmHg; 760 is standard
         self.min_pres, self.max_pres = 370, 810  # min/max pressure in mmHg (integer)
 
-        self.turbulence = 0.0  # strength of turbulence in mission.  float between 0.0 m/s and 10.0 m/s
+        # self.turbulence = None  # strength of turbulence in mission.  float between 0.0 m/s and 10.0 m/s
         self.min_turb, self.max_turb = 0.0, 10.0  # turbulence from 0 m/s to 10 m/s (integer)
 
-        self.haze = 0  # amount of haze in mission which limits visibility to the horizon.
+        # self.haze = None  # amount of haze in mission which limits visibility to the horizon.
         self.min_haze, self.max_haze = 0, 100  # haze in mission (int percentage value but write to mission file as proportion)
 
         # Wind layer variables
         self.windalts = (0, 500, 1000, 2000, 5000)  # the five predefined wind layer altitudes in IL-2
         self.num_windalts = len(self.windalts)  # number of wind altitudes specified above (i.e., 5)
-        self.windlayers = []  # contains the speed and direction of wind at altitudes specified in windalts
+        self.windlayers = None  # contains the speed and direction of wind at altitudes specified in windalts
 
         self.altitudes_str = ""  # constructs a string representing of the windalts above for later output
         for w in self.windalts[:-1]:
@@ -76,15 +76,13 @@ class MissionEnvironment:
         self.get_cloud_data(cloud_filenames)
 
         #  IL-2 Mission and briefing files data
-        self.mission_data = ""  # contents of IL-2 Mission File
-        self.briefing_data = ""  # contents of the IL-2 Briefing file
+        self.mission_data = None  # contents of IL-2 Mission File
+        self.briefing_data = None  # contents of the IL-2 Briefing file
 
         self.mission_files_updated = False  # indicates whether or not mission file was updated
-        self.console_msg = ""  # message to send to the il-2 after processing command (string)
+        self.console_msg = None  # message to send to the il-2 after processing command (string)
+        # end init of class var
 
-        """class initialization functions"""
-        self.open_mission_file(mission_filename)
-        self.open_briefing_file(briefing_filename)
 
     def open_mission_file(self, filename):
         """ Opens IL-2 text mission file and stores in mission_data """
@@ -105,8 +103,6 @@ class MissionEnvironment:
         """ writes briefing data to filename """
         with open(filename, 'w', encoding="utf16") as file:
             file.write(self.briefing_data)
-        with open("xxx.txt", 'w', encoding="utf16") as file:
-            file.write(self.briefing_data)
 
     def update_temperature(self, temperature_str):
         """ Updates temperature in mission file string """
@@ -122,17 +118,17 @@ class MissionEnvironment:
                                    f" {self.max_temp} C)."
                 return False
             else:
-                self.temperature = temperature
+                # self.temperature = temperature
                 self.console_msg = f"Temperature will be set to {temperature} °C at sea level."
-                print(f"Temperature will be set to {temperature} °C at sea level.")
                 self.mission_data = re.sub(r"(?<=Temperature = )-*\d+(?=;)", str(temperature), self.mission_data)
-                self.briefing_data = re.sub(r"(?<=Temperature \(0m\):</b> )-*\d+(?= C)", str(self.temperature),
+                self.briefing_data = re.sub(r"(?<=Temperature \(0m\):</b> )-*\d+(?= C)", str(temperature),
                                             self.briefing_data)
                 self.mission_files_updated = True
                 return True
 
     def update_time(self, time_str):
         """ Updates time in mission file string -- only accepts a single hour value for time  """
+        print("got to update_time() with time_str = ", time_str)
         try:
             time = int(time_str)
         except ValueError:
@@ -145,7 +141,7 @@ class MissionEnvironment:
                                    f" {self.max_time}."
                 return False
             else:
-                self.time = time
+                # self.time = time
                 self.console_msg = f"Mission time will be set to {time}:00 hours."
                 self.mission_data = re.sub(r"(?<=Time = )\d+(?=:)", str(time), self.mission_data)
                 self.briefing_data = re.sub(r"(?<=Start [tT]ime:</b> )\d\d(?=\d\d hours)", f"{time:02}",
@@ -167,7 +163,7 @@ class MissionEnvironment:
                                    f"{self.max_turb} m/s."
                 return False
             else:
-                self.turbulence = turbulence
+                # self.turbulence = turbulence
                 self.console_msg = f"Mission turbulence will be set to {turbulence} m/s."
                 self.mission_data = re.sub(r"(?<=Turbulence = )\d+[.]*[\d+]*(?=;)", f"{turbulence:.1f}", self.mission_data)
                 self.briefing_data = re.sub(r"(?<=Turbulence:</b> )\d+[.]*[\d+]*(?= m/s)", f"{turbulence:.1f}", self.briefing_data)
@@ -187,7 +183,7 @@ class MissionEnvironment:
                                f" mmHg.\n     Note that standard pressure is 760 mmHg at sea level."
             return False
         else:
-            self.pressure = pressure
+            # self.pressure = pressure
             self.console_msg = f"Pressure will be set to {pressure} mmHg."
             self.mission_data = re.sub(r"(?<=Pressure = )-*\d+(?=;)", str(pressure), self.mission_data)
             self.briefing_data = re.sub(r"(?<=Pressure \(0m\):</b> )-*\d+(?= mmHg)", str(pressure), self.briefing_data)
@@ -290,7 +286,7 @@ class MissionEnvironment:
             self.clouds.append(self.Clouds(split_str[0], split_str[1]))
         self.num_clouds = len(self.clouds)
 
-    def list_cloud_data(self, tmp_str):
+    def list_cloud_data(self, unused_arg):
         """ Lists the available cloud sets for IL-2 console print -- tmp_str argument is ignored """
         self.console_msg = 'The following cloud configurations are available:\n'
         for i, cloud in enumerate(self.clouds):
@@ -319,4 +315,3 @@ class MissionEnvironment:
 
             self.mission_files_updated = True
             return True
-

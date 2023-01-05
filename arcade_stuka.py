@@ -3,7 +3,7 @@ import os
 import shutil
 import re
 
-from constants import MISSION_LOG_BACKUP_DIR, COPY_MISSION_LOGFILES, MISSION_FILENAME, points, FAKE_PREFIX, \
+from constants import MISSION_LOG_BACKUP_DIR, COPY_MISSION_LOGFILES, points, FAKE_PREFIX, \
     HIGHSCORES_URL
 from highscores import compute_score, enter_score, html_write_scores
 from mission_objectives import get_mission_objectives
@@ -155,7 +155,7 @@ class ArcadeMission:
         self.running = False  # player actively playing arcade
 
 
-def process_arcade_game(arcade, mission_log_file_wildcard, keep_log_files, r_con):
+def process_arcade_game(arcade, mission_log_file_wildcard, mission_filename, keep_log_files, r_con):
     """ Parse Mission log files and run arcade """
     mlog_files = glob.glob(mission_log_file_wildcard)
     mlog_files.sort(key=lambda x: os.path.getmtime(x))  # sort by creation timestamp to ensure processing from old to new
@@ -183,7 +183,7 @@ def process_arcade_game(arcade, mission_log_file_wildcard, keep_log_files, r_con
                     #  Player spawned in the arcade start area and arcade game begins; else player spawned in another
                     # area
                     arcade.veh_runtime_lookup = {}  # look up vehicles by their runtime ID given in mission logfiles
-                    arcade.vehicles, arcade.veh_lookup = get_vehicles(MISSION_FILENAME)  # get enemy target vehicles with lookup
+                    arcade.vehicles, arcade.veh_lookup = get_vehicles(mission_filename)  # get enemy target vehicles with lookup
                     arcade.player = create_player(line)
                     arcade.running = True
                     log_str = re.search(r'(?<=missionReport)[\s\S]+(?=.txt)', current_logfile).group()
@@ -298,7 +298,7 @@ def main():
     mission = Mission(IL2_BASE_DIR, IL2_MISSION_DIR, MISSION_BASENAME)
     file_wildcard = r'\\JUNEKIN\il2\data\logs\mission\bak\m*.txt'
     if mission.arcade_game:
-        process_arcade_game(mission.arcade, file_wildcard, True, None)
+        process_arcade_game(mission.arcade, file_wildcard, mission.mission_filename, True, None)
 
 
 if __name__ == "__main__":

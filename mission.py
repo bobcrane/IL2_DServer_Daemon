@@ -3,13 +3,16 @@ import shutil
 import os
 import subprocess
 import time
+from missionenvironment import MissionEnvironment  # handles weather info (e.g., winds, clouds, mission time, etc. )
+from constants import CLOUD_FILES_WILDCARD
 from arcade_stuka import ArcadeMission
 
 
+"""
+    Main class which hold mission data  and methods associated with missions including mission file handling and 
+    user commands.
+"""
 class Mission:
-    """ Class to hold data and methods associated with mission file handling and some processing
-        not directly associated with environmental data like weather conditions  """
-
     def __init__(self, base_dir, mission_dir, mission_basename):
         self.base_dir = base_dir  # IL-2 base directory
         self.main_mission_dir = mission_dir  # main directory where Dserver runs the mission
@@ -27,14 +30,11 @@ class Mission:
         self.description_ext = ".txt"  # file extension name which contains a short description of the mission
 
         """ mission and briefing files in the main mission dir (e.g., scg_training.Mission and scg_training.eng """
-        self.main_mission_filename = self.main_mission_dir + self.mission_basename + self.mission_file_ext
-        self.main_briefing_filename = self.main_mission_dir + self.mission_basename + self.briefing_file_ext
+        self.mission_filename = self.main_mission_dir + self.mission_basename + self.mission_file_ext
+        self.briefing_filename = self.main_mission_dir + self.mission_basename + self.briefing_file_ext
 
-        """ the mission and briefing files are stored in a working directory to not corrupt these same files
-            stored in the main mission directory until they are ready for processing """
-        self.working_dir = self.main_mission_dir + "current mission text files" "\\"
-        self.working_mission_filename = self.working_dir + self.mission_basename + self.mission_file_ext
-        self.working_briefing_filename = self.working_dir + self.mission_basename + self.briefing_file_ext
+        """ Environmental weather data is held in this class var env"""
+        self.env = MissionEnvironment(CLOUD_FILES_WILDCARD)
 
         """ boolean reset vars: (1) reset mission only, (2) reset requires resaver.exe action, (3) new mission """
         self.user_initiated_reset = False  # whether or not user inputted the reset command
@@ -50,16 +50,23 @@ class Mission:
 
         self.console_msg = ""  # message to print to console later
 
-        self.description_filename = self.main_mission_dir + self.mission_basename + self.description_ext
-        self.mission_index = self.get_current_mission_index()  # index of the current and possibly next mission
-        # Whether or not current mission is an arcade game
-        self.arcade_game = self.is_current_mission_arcade()
-        print(f"Current mission is an arcade game = {self.arcade_game}")
+        self.description_filename = None
+        # self.mission_index = self.get_current_mission_index()  # index of the current and possibly next mission
+        self.mission_index = None  # index of the current mission as specified in all available missions
 
-        if self.arcade_game:
-            self.arcade = ArcadeMission(self.working_mission_filename, self.working_briefing_filename)
+        # Whether or not current mission is an arcade game
+        # self.arcade_game = self.is_current_mission_arcade()   # old code
+        self.arcade_game = None  # will hold data after mission files loaded
+        # print(f"Current mission is an arcade game = {self.arcade_game}")
+
+        if self.arcade_game:  # base mission is not actually an arcade game so ignore under current code
+            self.arcade = ArcadeMission(self.mission_filename, self.briefing_filename)
         else:
             self.arcade = None
+
+        self.dserver_write_index = 0  # dserver will read two mission files enging in either 0 or 1 (e.g., scg_training0 and scg_training1)
+
+        self.time_warnings = [5, 4, 3, 2, 1]  # minute marks before end of mission used to warn players that mission is ending
 
     class AvailableMissions:
         """ very simple class containing string data associated with the available missions """
@@ -107,15 +114,14 @@ class Mission:
         av_mis.sort(key=lambda x: x.sort_key)  # sort missions based on each mission's sort_key
         return av_mis
 
-    def list_missions(self, unused_str):
+    def list_missions(self, unused_arg):
         """ Sends to remote console (rc) a listing of the missions available for selection """
         self.console_msg = "The following missions are available:\n"
         for i, mis in enumerate(self.available_missions):
             self.console_msg += f"{i:4}: {mis.description}\n"
-            # print(f"{i:4}: {mis.description}")
-        self.console_msg += f"(Note: Current mission index is {self.mission_index}.)"
+        self.console_msg += f"(Note: Current mission is #{self.mission_index}.)"
 
-    def update_mission(self, mission_index_str):
+    def user_load_mission(self, mission_index_str):
         """ Changes the scenario to the one selected by user.  """
         try:
             index_ = int(mission_index_str)
@@ -134,44 +140,67 @@ class Mission:
             return
 
     def reset_cmd(self, unused_str):
-        """ User initiated reset """
+        """ User initiated reset command """
         self.user_initiated_reset = True
         self.console_msg = ""  # save reset specific messages for later processing
         return
 
+    # def server_cmd(self, command_str):
+    #     """ User initiated server command """
+    #     rc.send(f"serverinput {command_str}")
+    #     self.console_msg = f"Sending command {command_str}"
+    #     return
+
+    def init_new_mission(self, index):
+        """ Initiates a new mission in preparation for new DServer startup """
+        self.mission_index = index  # mission to be loaded from available missions
+        self.dserver_write_index = 0
+        self.load_new_mission()
+        self.copy_mission_to_dserver_files()  # copy mission files to the ones actually read by dserver.exe -
+
+    def update_mission_vars(self):
+        """ updates mission variables after in new load and after files have been copied """
+        self.env.open_mission_file(self.mission_filename)
+        self.env.open_briefing_file(self.briefing_filename)
+        self.arcade_game = self.is_current_mission_arcade()  # reads from .txt mission file
+        self.old_time = time.time()
+
     def load_new_mission(self):
-        """ selects a mission from the available missions directory and copies and renames these files to
-            the appropriate directories and filenames using the generic mission basename
-            called by DServer.exe (e.g., scg_training). """
-        """ copy all new mission files to main directory and rename them to the mission basename (e.g., 
-            x.Mission -> scg_training.Mission, etc.) """
-        new_mission_files = glob.glob(self.available_missions[self.mission_index].filename + ".*")
-        new_basename = os.path.basename(self.available_missions[self.mission_index].filename)
-        for f_ in new_mission_files:
-            original_basename = os.path.basename(f_)  # get only the filename without directory path to it
-            shutil.copyfile(f_, self.main_mission_dir + original_basename.replace(new_basename, self.mission_basename))
+        """
+            selects a mission from the 'available missions' directory using mission_index and copies and renames
+            mission files to generic mission basename (e.g.,  x.Mission -> scg_training.Mission, etc).
+        """
 
-        # move .Mission file into working directory; copy .eng file into working directory as well
-        shutil.move(self.main_mission_filename, self.working_mission_filename)
-        shutil.copy(self.main_briefing_filename, self.working_briefing_filename)
+        """ Copy and rename mission files """
+        print(f"Loading mission #{self.mission_index}....")
+        mission_files = glob.glob(self.available_missions[self.mission_index].filename + ".*")  # e.g., kuban_main.Mission, kuban_main.eng, etc. and this includes full absolute path
+        basename = os.path.basename(self.available_missions[self.mission_index].filename)  # e.g., ...\available_mission\kuban_main.Mission -> kuban_main
 
-        # modify mission's list file to contain correct mission basenames and rewrite it
+        for filename in mission_files:
+            original_basename = os.path.basename(filename)  # get only the filename without directory path to it
+            if self.description_ext not in filename:  # don't copy a file ending in ".txt" since it is not part of an official il-2 mission file set
+                shutil.copyfile(filename, self.main_mission_dir + original_basename.replace(basename, self.mission_basename))  # e.g., kuban_main.Mission -> scg_training.Mission
+            else:
+                self.description_filename = filename
+
+        # modify mission's list file to contain correct mission basename and rewrite it
         list_file = self.main_mission_dir + self.mission_basename + self.list_ext
         with open(list_file, 'r') as file_object_:
             file_str = file_object_.read()
-        file_str = file_str.replace(new_basename.lower(), self.mission_basename)
+        file_str = file_str.replace(basename.lower(), self.mission_basename)
         with open(list_file, 'w') as file:
             file.write(file_str)
 
-    def resaver(self, rc):
-        """ calls MissionResaver.exe and does necessary mission file handling
-            rc and smg are needed for extensive remote console messaging """
+        """" Update new missions variables """
+        self.update_mission_vars()
 
-        shutil.copy(self.working_mission_filename, self.main_mission_dir)  # copy .Mission file to main mission dir
-        shutil.copy(self.working_briefing_filename, self.main_mission_dir)  # copy .eng file to main mission dir
+    def resaver(self, rc):
+        """ calls MissionResaver.exe (in il2 bin/resaver directory) and does necessary mission file handling
+            rc var is needed for extensive remote console messaging """
+
         # copy .eng over all other foreign language briefing files  -- my missions only support english language
         for file_ext in self.language_exts:
-            shutil.copy(self.working_briefing_filename, self.main_mission_dir + self.mission_basename + file_ext)
+            shutil.copy(self.briefing_filename, self.main_mission_dir + self.mission_basename + file_ext)
 
         # change current system directory where missionresaver.exe is held because that program fails to work otherwise
         os.chdir(self.il2_resaver_dir)
@@ -179,14 +208,10 @@ class Mission:
         print(f"mission text file name = {mission_text_filename}; current working dir = {os.getcwd()}")
 
         # and run MissionResaver.exe (aka "rs") and capture its output
-        # MissionResaver.exe must use relative paths because it fails using network paths.
-        i = self.main_mission_filename.find(r"data" "\\")
-        rel_path_filename = r"..\.." + "\\" + self.main_mission_filename[i:]
-        print(f"rel path: {rel_path_filename}")
-        rs_process = subprocess.Popen(["MissionResaver.exe", "-t", "-d", r"..\..\data", "-f",
-                                       rel_path_filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        print('resaver command:' "MissionResaver.exe", "-t", "-d", self.base_dir + "data",  "-f", mission_text_filename)
+        rs_process = subprocess.Popen(["MissionResaver.exe", "-t", "-d", self.base_dir + "data",  "-f",
+                                       mission_text_filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                       universal_newlines=True)
-        print("System: Reset initiated. Processing mission files. Please be patient...")
         rc.send_msg(f"System: Reset initiated. Processing mission files. Please be patient...")
         i = 0
         while rs_process.poll() is None:
@@ -197,37 +222,89 @@ class Mission:
                 rc.send_msg(f"System ({i} secs):...processing mission files")
 
         output, errors = rs_process.communicate()
+        print('out = ', output, ' errors = ', errors)
         # check for correct completion of resaver
         if "Saving localisation data DONE" in output and "Saving binary data DONE" in output \
            and "Saving .list DONE" in output:
             print("System: Processing complete.  Mission resetting...")
             rc.send_msg(f"System: Processing complete.  Mission resetting...")
-            rc.send("serverinput reset")
         else:
             rc.send_msg(f"rc, System Error: MissionResaver.exe failed processing....stopping server."
-                        f" Please contact Limbo ASAP!!!")
-            print("System error trying to MissionResaver.exe:", output, errors)
+                        f" Please report error to SCG_Limbo.")
+            print("System error executing MissionResaver.exe:", output, errors)
             exit(-1)
 
-        # remove .Mission text file so user do not load it onto their computer; copy of this still exists in working dir
-        os.remove(mission_text_filename)
+    def copy_mission_to_dserver_files(self):
+        """
+            Copies current mission files to files actually used by Dserver.  Dserver needs to cycle between
+            two missions to prevent read/write permission errors caused by (very rare)
+            copying/writing to the same mission files beuing in current use by Dserver.exe
+            For example, scg_training.eng -> scg_training1.eng
+
+            Function also updates the mission .lst file to contain the correct file names.
+        """
+
+        # init vars
+        basename = self.mission_basename  # shorthand var to make code more readable below
+        mission_num = str(self.dserver_write_index)
+        print(f"copying mission to #{mission_num} slot")
+
+
+        # change to mission directory to avoid working with full file path names
+        os.chdir(self.main_mission_dir)
+
+        """ copy all necessary mission files located in mission directory """
+        filenames = glob.glob(basename + '.*')
+        filenames = [i for i in filenames if not ('.Mission' in i)]  # remove .Mission file from list so it is not copied
+        for source in filenames:
+            destination = source[:len(basename)] + mission_num + source[len(basename):]
+            shutil.copy(source, destination)
+        # print('$$$$$$$ copying mission files to ', basename + mission_num)
+
+        """ modify filenames in list file to correspond with mission being used by dserver  """
+        list_file = basename + mission_num + ".list"
+        with open(list_file, 'r') as file_object_:
+            file_str = file_object_.read()
+        file_str = file_str.replace(basename + '.', basename + mission_num + '.')
+        with open(list_file, 'w') as file:
+            file.write(file_str)
+
+        self.dserver_write_index = (1 + self.dserver_write_index) % 2  # cycle between 0 and 1 for next dserver mission copy
+
 
     def reset_mission(self, rc):
-        """ tell DServer to initiate a reset"""
+        """ Copy mission files to next set that dserver will use"""
+        self.copy_mission_to_dserver_files()
+
+        """ tell dserver to issue a serverinput command to reset """
         rc.send("serverinput reset")
 
-    def check_reset_to_base_mission(self, reset_time_amount):
-        """ Reset to base mission (index = 0) if too much player inactivity """
-        if self.mission_index != 0:
-            time_now = time.time()
-            if time_now > (self.old_time + reset_time_amount):
-                print("Resetting server to default mission due to player inactivity.")
-                self.mission_index = 0
-                self.new_mission = True  # will trigger new mission load
-                # self.arcade_game = self.is_current_mission_arcade()
-                # self.load_new_mission()
-                self.old_time = time_now
+    def check_reset_to_base_mission(self, rc, reset_time_amount, tick_delay):
+        """ Checks whether there is too much inactivity on server.
+            Sends warning messages to console if too much inactivity detected.
+            And then returns whether or not dserver needs to be restarted  """
+        time_now = time.time()
+        time_elapsed = time_now - self.old_time
 
+        # Send warning message to user if mission is about to end
+        for t in self.time_warnings:
+            warning_time = reset_time_amount - (60 * t)
+            if (time_elapsed >= warning_time) and (time_elapsed <= warning_time + tick_delay):
+                rc.send_msg(f"System warning: Resetting mission in {t} minute{'' if t == 1 else 's'} due to player inactivity. To cancel, type any text into chat to demonstrate activity.")
+                print(f"System: Resetting mission in {t} minute{'' if t == 1 else 's'}.")
+
+        # reset mission
+        if time_elapsed > reset_time_amount:
+            print("Resetting server to default mission due to player inactivity.")
+            # routine currently assumes dserver restart will occur...if not then use commented out code below
+            # self.mission_index = 0
+            # self.new_mission = True  # will trigger new mission load
+            # self.arcade_game = self.is_current_mission_arcade()
+            # self.load_new_mission()
+            # self.old_time = time_now
+            return True  # set flag to restart Dserver
+        else:
+            return False
 
 
 """ run mission stand alone functions here """
@@ -243,7 +320,6 @@ def main():
     mission.mission_index = 0
     print(f"Loading mission: {mission.mission_index}")
     mission.load_new_mission()
-
 
 
 if __name__ == "__main__":
