@@ -10,16 +10,13 @@ from urllib.parse import unquote
 def pack_message(msg):
     """  Returns packed string msg for TCP send """
     enc_str = msg.encode(encoding='UTF-8')
-    # packet = struct.pack("H{0}sx".format(len(msg)), len(msg) + 1, msg)
     return struct.pack(f"H{len(enc_str)}sx", len(enc_str) + 1, enc_str)
 
 
 def unpack_message(data):
-    # print(f"{data}; ", end='')
+    """  Returns unpacked string that pack_message() packed """
     try:
-        # data_format = "H{0}sx".format(struct.unpack("h", data[0:2])[0] - 1)
-        data_format = f"H{len(data) - 3}sx"  # subtract first two bytes (reprsenting length) and last null byte
-        # print(f"unpack.format = {data_format}, len={len(data)}")
+        data_format = f"H{len(data) - 3}sx"  # subtract first two bytes (representing length) and last null byte
         upk_data = struct.unpack(data_format, data)
         return upk_data
     except struct.error as e:
@@ -28,7 +25,7 @@ def unpack_message(data):
 
 
 class RemoteConsoleClient:
-    def __init__(self, host, port, login, password):
+    def __init__(self, host, port, login, password, debug=False):
         self.host = host
         self.port = port
         self.login = login
@@ -36,7 +33,7 @@ class RemoteConsoleClient:
         self.client = None
         self.response_string = ""
         self.comm_flag = None  # stores whether or not dserver communication was successful
-
+        self.debug = debug  # used for debugging purpose...if true then remote console send messages are ignored
 
         """ Il-2's remote console returned response dictionary """
         self.Dserver_response_dict = {
@@ -69,9 +66,12 @@ class RemoteConsoleClient:
             print("authorized.")
             return True
 
-    def send(self, msg):
+    def send(self, msg, debug=False):
         """ Send message string to DServer string via TCP protocol.  Brute force send until it completes
             --reestablishing connection if needed """
+
+        if debug:
+            return
 
         packet = pack_message(msg)
 
@@ -104,12 +104,12 @@ class RemoteConsoleClient:
                     unpacked_return_str = unpack_message(data)
                     decoded_return_string = unpacked_return_str[1].decode()
                 except (AttributeError, IndexError, ValueError) as e:
-                    print(f"Exception error decoding received packet: {e}")
+                    print(f"\nReceived packet has exception error: {e}")
                     continue
 
                 self.response_string = unquote(unquote(decoded_return_string))
-                if msg == "getplayerlist":
-                    print(f"'getplayerlist' response: {self.response_string}")
+                # if msg == "getplayerlist":
+                #     print(f"'getplayerlist' response: {self.response_string}")
                 return_code = int(re.search(r'\d+', decoded_return_string).group())  # get the first number in string and return only it
                 if return_code == 1:
                     # sometimes getplayerlist command does not return a player list due to server status...
@@ -123,7 +123,7 @@ class RemoteConsoleClient:
                     print(f"Dserver error {self.response_lookup(return_code)}({return_code})  while sending '{msg}': ")
                     time.sleep(5)
 
-        self.comm_flag = completed  # store whether or not comms with Dserver was successful
+        self.comm_flag = completed  # store whether comms with Dserver was successful
 
     def close(self):
         self.client.close()
@@ -131,8 +131,30 @@ class RemoteConsoleClient:
     def response_lookup(self, num):
         return self.Dserver_response_dict[num]
 
-    def send_msg(self, message, delay=0.5):
-        """ Sends long message to console slowly to circumvent anti-spam filter """
-        for s in message.split('\n'):
-            self.send("chatmsg 0 0 " + s)
-            time.sleep(delay)  # cannot flood remote console with messages too fast or lines fail to print
+    def send_msg(self, message, delay=0.5, prefix='', single_line=True, max_length=750):
+        """
+            Sends message to il-2 chat console.  If single_line is True then send a single line separated by html <br>
+            for newlines; break up if string is greather than max_length.
+            Else send message in slow fashion to circumvent built-in spam filter
+        """
+        if self.debug:
+            pass
+        elif single_line:
+            message_with_breaks = message.replace('\n', '<br>')
+            if len(message_with_breaks) < max_length:
+                self.send("chatmsg 0 0 " + prefix + message_with_breaks)
+            else:  # break message into two parts to avoid spam filter
+                position = message_with_breaks[:max_length].rfind('<br>')
+                part1 = message_with_breaks[:position]
+                part2 = message_with_breaks[position + 4:]
+                self.send("chatmsg 0 0 " + prefix + part1)
+                time.sleep(delay)  # cannot flood remote console with messages too fast or dserver spam filter kicks in
+                self.send("chatmsg 0 0 " + part2)
+
+
+        else:
+            for s in message.split('\n'):
+                time.sleep(delay)  # cannot flood remote console with messages too fast or dserver spam filter kicks in
+                self.send("chatmsg 0 0 " + prefix + s)
+                prefix = ''  # only print prefix for first line
+

@@ -10,11 +10,6 @@ Program allows players/pilots to:
 2.  Reset a mission or load a new one from a list of several missions.
 3.  Play arcade games with leaderboards (e.g., https://il2arcade.neocities.org/).
 
-To see the server in action, join the _SCG Arcade and Training_ multiplayer server.  Password is "enjoy" (without quoation marks).
+To see the server in action, join the _SCG Arcade and Training_ multiplayer server.  Password is "enjoy" (without quotation marks).
 Here is a list of server commands available to pilots: https://il2arcade.neocities.org/il2serverscript%20commands.pdf
-
-
-todo:
-
-determine whether or not current_working_directory is necessary with new system.
 

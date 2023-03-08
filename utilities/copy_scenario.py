@@ -3,14 +3,18 @@
 
 import glob
 import shutil
+import time
 
-# mission_names = ['kuban_main',
-#                  'kuban_convoy_attack',
-#                  'levelbombing',
-#                  'stalingrad_tanks1',
-#                  'air_test']
+mission_names = [
+    'kuban_main',
+    # 'kuban_convoy_attack',
+    # 'levelbombing',
+    # 'stalingrad_tanks1',
+    #  'air_test',
+    # 'arcade_stuka'
+]
 
-mission_names = ['levelbombing']
+#mission_names = ['levelbombing']
 
 source_dir = r"J:\SteamLibrary\steamapps\common\IL-2 Sturmovik Battle of Stalingrad\data\Multiplayer\Dogfight\scg multiplayer server"
 dest_dir = r"\\JUNEKIN\il2\data\Multiplayer\Dogfight\scg multiplayer server\available missions"
@@ -32,3 +36,6 @@ for scenario_name in mission_names:
     for f in filenames:
         x = shutil.copy(f, dest_dir)
         print(f"{f} -> {x}")
+
+current_time = time.strftime("%H:%M:%S")
+print("Wrote at:", current_time)

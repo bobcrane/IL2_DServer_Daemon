@@ -6,7 +6,7 @@ import pickle
 
 
 class Player:
-    """ Contains a pilots current alias, past aliasess, official player ID, and official alias ID """
+    """ Contains official player ID, and official alias (or profile) ID, a pilots current alias, and past aliasess """
     def __init__(self, player_name, rc):
         self.name = player_name  # current pilot handle
         self.aliases = [player_name]  # previous handles associated with this pilot
@@ -50,7 +50,7 @@ def print_player_list(_player_list):
         alias_str = ''
         for i in p.aliases:
             alias_str += i + ' '
-        print(f"{p.name:25} {alias_str:35} player_ID: {p.player_id}, profile_ID:, {p.profile_id}")
+        print(f"{p.name:25} {alias_str:35} player_ID: {p.player_id}, Alias_ID: {p.profile_id}")
 
 
 def read_player_list(_filename):
@@ -63,6 +63,10 @@ def write_player_list(_player_list, _filename):
         pickle.dump(_player_list, f)
 
 if __name__ == "__main__":
-    from constants import IL2_PLAYER_LIST_FILE
-    p = read_player_list(IL2_PLAYER_LIST_FILE)
+    il2_base_dir = r'\\JUNEKIN\il2' + '\\'
+    il2_mission_dir = il2_base_dir + r'data\Multiplayer\Dogfight\scg multiplayer server' + '\\'
+    il2_player_list_file = il2_mission_dir + r'python\player_list.pickle'
+
+
+    p = read_player_list(il2_player_list_file)
     print_player_list(p)

@@ -1,4 +1,5 @@
 """"Environmental weather classes associated with IL-2 Mission files  """
+
 import re
 from collections import namedtuple
 import glob
@@ -79,7 +80,7 @@ class MissionEnvironment:
         self.mission_data = None  # contents of IL-2 Mission File
         self.briefing_data = None  # contents of the IL-2 Briefing file
 
-        self.mission_files_updated = False  # indicates whether or not mission file was updated
+        self.mission_environment_updated = False  # indicates whether mission file was updated
         self.console_msg = None  # message to send to the il-2 after processing command (string)
         # end init of class var
 
@@ -123,7 +124,7 @@ class MissionEnvironment:
                 self.mission_data = re.sub(r"(?<=Temperature = )-*\d+(?=;)", str(temperature), self.mission_data)
                 self.briefing_data = re.sub(r"(?<=Temperature \(0m\):</b> )-*\d+(?= C)", str(temperature),
                                             self.briefing_data)
-                self.mission_files_updated = True
+                self.mission_environment_updated = True
                 return True
 
     def update_time(self, time_str):
@@ -146,7 +147,7 @@ class MissionEnvironment:
                 self.mission_data = re.sub(r"(?<=Time = )\d+(?=:)", str(time), self.mission_data)
                 self.briefing_data = re.sub(r"(?<=Start [tT]ime:</b> )\d\d(?=\d\d hours)", f"{time:02}",
                                             self.briefing_data)
-                self.mission_files_updated = True
+                self.mission_environment_updated = True
                 return True
 
     def update_turbulence(self, turbulence_str):
@@ -167,7 +168,7 @@ class MissionEnvironment:
                 self.console_msg = f"Mission turbulence will be set to {turbulence} m/s."
                 self.mission_data = re.sub(r"(?<=Turbulence = )\d+[.]*[\d+]*(?=;)", f"{turbulence:.1f}", self.mission_data)
                 self.briefing_data = re.sub(r"(?<=Turbulence:</b> )\d+[.]*[\d+]*(?= m/s)", f"{turbulence:.1f}", self.briefing_data)
-                self.mission_files_updated = True
+                self.mission_environment_updated = True
                 return True
 
     def update_pressure(self, pressure_str):
@@ -187,7 +188,7 @@ class MissionEnvironment:
             self.console_msg = f"Pressure will be set to {pressure} mmHg."
             self.mission_data = re.sub(r"(?<=Pressure = )-*\d+(?=;)", str(pressure), self.mission_data)
             self.briefing_data = re.sub(r"(?<=Pressure \(0m\):</b> )-*\d+(?= mmHg)", str(pressure), self.briefing_data)
-            self.mission_files_updated = True
+            self.mission_environment_updated = True
             return True
 
     def update_haze(self, haze_str):
@@ -207,7 +208,7 @@ class MissionEnvironment:
                 haze_proportion = haze / 100.0
                 self.mission_data = re.sub(r"(?<=Haze = )\d+[.]*[\d+]*(?=;)", f"{haze_proportion:.2f}", self.mission_data)
                 self.briefing_data = re.sub(r"(?<=Haze:</b> )\d+(?=%)", str(haze), self.briefing_data)
-                self.mission_files_updated = True
+                self.mission_environment_updated = True
                 return True
 
     def update_wind(self, winds_str):
@@ -271,7 +272,7 @@ class MissionEnvironment:
         for w in self.windlayers:
             self.console_msg = self.console_msg + f" {w.altitude:6}m: {w.speed:2}m/s @ {w.true_direction:3}°\n"
 
-        self.mission_files_updated = True
+        self.mission_environment_updated = True
         return True
 
     def get_cloud_data(self, cloud_files_prefix):
@@ -313,5 +314,5 @@ class MissionEnvironment:
             self.mission_data = re.sub(r"\s\sCloudLevel([\w\W]+)(?=\s\sTurb)", tmp_str, self.mission_data)
             self.briefing_data = re.sub(r"(?<=Clouds:</b> )(.*?)(?=<br)", self.clouds[index].description, self.briefing_data)
 
-            self.mission_files_updated = True
+            self.mission_environment_updated = True
             return True

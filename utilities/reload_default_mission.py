@@ -11,4 +11,4 @@ for i, m in enumerate(mission.available_missions):
 #
 mission.mission_index = 0
 print(f"Loading mission: {mission.mission_index}")
-mission.load_new_mission()
+mission.load_new_mission_flag()

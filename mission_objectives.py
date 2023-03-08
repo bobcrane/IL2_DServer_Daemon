@@ -8,17 +8,18 @@ class MissionObjectives:
         self.index = _index  # index in mission file
         self.coordinates = _coordinates  # coordinates string
 
-    def print(self):
-        print(f"Mission Objective: name = {self.name}, index = {self.index}, coordinates = {self.coordinates}")
+    def self_str(self):
+        return f"Mission Objective: name = {self.name}, index = {self.index}, coordinates = {self.coordinates}"
 
 
 def get_mission_objectives(mission_filename, briefing_filename):
     """
-        Get mission objective MCU names and their position
-        Unfortunately, the mission objective's name is not stored in the  mission file but the briefing file instead.
+        Get mission objective MCU (mission control unit) names and their position
+        Mission MCUs (Mission Control Unit, c.f., IL-2 scenario editor, can act as variables and signal this daemon when executed in mission
+        Unfortunately, the mission objective's name is not stored in the  mission text file but the english briefing text file instead.
         To get this name, lookup the 'LCName = ' index value defined in the mission objective and use that to obtain
-        the name in the briefing file.
-        Store the results in an mission objective objective {name: position} dictionary
+        the name in the briefing file as it would be showed in the IL-2 mission editor
+        Store the results in a mission objective objective {name: position} dictionary
     """
 
     with open(briefing_filename, 'r', encoding="UTF-16") as file:
@@ -51,7 +52,16 @@ def get_mission_objectives(mission_filename, briefing_filename):
     return m_objs, lookup
 
 
-def print_mission_objectives(m_objs):
-    print(f"Number of mission objectives: {len(m_objs)}")
+def print_mission_objectives(m_objs, short=False):
+    print_str = ''
+    print_str += f"Mission objectives ({len(m_objs)}): "
     for m in m_objs:
-        m.print()
+        if short:
+            print_str += f"'{m.name}', "
+        else:
+            print_str += m.self_str()
+    if short:
+        print_str = print_str[0:len(print_str)-2]
+    print(print_str)
+
+

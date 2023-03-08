@@ -1,34 +1,31 @@
-from constants import FAKE_PREFIX
+from constants import FAKE_PREFIX, DSERVER_AIM, DSERVER_ICONS, DSERVER_AMMO, DSERVER_INVULN, PRINT_DSERVER_VARS
 from help import print_help_for_individual_cmds
-from arcade_stuka import ArcadeMission
-
+from dserver_run_functions import check_if_server_vars_updated, check_arcade_dserver_setting
 
 class ProgramCommand:
     """Class to hold all program commands and their functionality including associated help"""
     def __init__(self, commands_list, method_pointer, command_type_string, short_help_str, help_msg):
         self.commands = commands_list  # command aliases (e.g., temperature, temp, t)
         # function pointer to function that should called by the command  -- usually a method in the Environment class
-        self.cmd_method = method_pointer  # points to the function to execute
+        self.cmd_method = method_pointer  # points to the function to execute or possibly other type of var
         # command type dictates how the user command will be processed (e.g., environmental, help, procedural, etc.)
         self.command_type = command_type_string  # e.g., help, environmental, procedural
         self.short_help_str = short_help_str
         self.help_message = help_msg  # help message to print to the console
 
 
-def define_commands(r_con, mis):
+def define_commands(mis):
     """
-        Initialize program/user commands that Il-2 users can call to get help, manipulate the mission's environment, and
-        mission. Stores the command's aliases, a function pointer to process the command, the command
+        Initialize player console commands.  Commands do things like provide help, manipulate the mission's environment, load/list different missions,
+        and change server side settings. Stores the command's aliases, a function pointer to process the command (if necessary), the command
         type (e.g., help, environmental, process, dserver, etc.), and the command's help message for the user.
 
-        Input: r_con = RemoteConsole class object, env = Environment class object,  mission = Mission class object
-        Output: Returns a list of ProgramCommands objects
 
     """
 
     prog_cmds = []
     prog_cmds.append(
-        ProgramCommand(["help", "h"], r_con.send_msg, "help",
+        ProgramCommand(["help", "h"], None, "help",
                        "This message",
                        f"Outputs entire help message. Provide a command name to return only that command's help"
                        f" message.\n{FAKE_PREFIX}h\n{FAKE_PREFIX}help winds"))
@@ -44,14 +41,39 @@ def define_commands(r_con, mis):
                        f"\n{FAKE_PREFIX}load 1 -- Loads and starts mission #1."))
     prog_cmds.append(
         ProgramCommand(["reset", "r"], getattr(mis, "reset_cmd"), "procedural",
-                       "Restores a mission and implements environmental changes",
-                       f"Resets the current mission.  Also commits any environmental or map/scenario changes."
+                       "Resets the mission.",
+                       f"Resets the current mission and also executes any pilot commands affecting the mission or server."
                        f" No arguments.\n"))
     prog_cmds.append(
         ProgramCommand(["command", "cmd", "c"], None, "server_command",
-                       "Sends a custom server command to the mission.",
-                       f"Sends a server command to the mission.  Any server commands will be indicated in the mission"
-                       f"briefing. Takes one argument which is the string set to the mission.  For example: cmd aihigh\n"))
+                       "Sends custom mission command.",
+                       f"Sends a server command to the mission.  Server commands (if any) will be indicated in the mission"
+                       f"briefing. Takes one argument which is command sent to the mission.  For example: cmd aihigh\n"))
+    prog_cmds.append(
+        ProgramCommand(["server", "svars", "s"], PRINT_DSERVER_VARS, "dserver",
+                       "Lists server side settings (see below).",
+                       f"Lists server side settings like aiming assist, unlimited ammo, object icons, etc. No arguments.\n"))
+    prog_cmds.append(
+        ProgramCommand(["aim"], DSERVER_AIM, "dserver",
+                       "Toggles aiming assist on server.",
+                       f"Turns on/off server side aiming assist. No arguments.\n"
+                       f"Note that pilot can manually turn on/off aiming assist if server is permitting aiming assist (default: RCtrl-I).\n"
+                       f"Reset mission to have server restart with this new setting."))
+    prog_cmds.append(
+        ProgramCommand(["icons"], DSERVER_ICONS, "dserver",
+                       "Toggles object icons on server.",
+                       f"Turns on/off server side object icons. No arguments.\n"
+                       f"Reset mission to have server restart with this new setting."))
+    prog_cmds.append(
+        ProgramCommand(["ammo"], DSERVER_AMMO, "dserver",
+                       "Toggles unlimited ammunition on server.",
+                       f"Turns on/off unlimited ammunition on server. No arguments.\n"
+                       f"Reset mission to have server restart with this new setting."))
+    prog_cmds.append(
+        ProgramCommand(["invuln"], DSERVER_INVULN, "dserver",
+                       "Toggles plane/vehicle invulnerability on server.",
+                       f"Turns on/off plane/vehicle invulnerability on server. No arguments.\n"
+                       f"Reset mission to have server restart with this new setting."))
     prog_cmds.append(
         ProgramCommand(["temperature", "temp", "t"], getattr(mis.env, "update_temperature"), "environmental",
                        "Sets mission temperature",
@@ -99,12 +121,13 @@ def define_commands(r_con, mis):
                        f"Provide an integer value between 0 and {mis.env.num_clouds - 1}"
                        f"\n{FAKE_PREFIX}clouds 2 -- Updates the clouds to cloud configuration #2."))
 
+
     return prog_cmds
 
 
 def is_cmd_in_program_commands(cmd_str, p_cmds):
     """ Determine if cmd_str (string) is contained in the list of program commands
-        Returns True/False and and index into the list of program commands """
+        Returns True/False and an index into the list of program commands """
     cmd_found = False
     i = -1
     for i, c in enumerate(p_cmds):
@@ -114,16 +137,15 @@ def is_cmd_in_program_commands(cmd_str, p_cmds):
     return cmd_found, i
 
 
-def process_user_commands(user_commands, r_con, mission, prog_cmds, help_str):
+def process_user_commands(user_commands, r_con, mission, server_dict, prog_cmds,  help_str):
     """ Process pilot inputted commands queue """
-
     for command in user_commands:
         # flush any remaining commands after reset initiated
-        if mission.new_mission or mission.user_initiated_reset:
-            print("reset ordered")
+        if mission.load_new_mission_flag or mission.user_initiated_reset:
+            print("reset ordered--breaking command processing")
             break
 
-        # separate command and any following arguments into two strings: command and arguments
+        # separate command and any following arguments into (only) two strings: command (one word) and arguments (1 or more words)
         cmd = command.split(' ', 1)
         cmd_word = cmd[0]
         if len(cmd) > 1:
@@ -135,79 +157,94 @@ def process_user_commands(user_commands, r_con, mission, prog_cmds, help_str):
         found, index = is_cmd_in_program_commands(cmd_word, prog_cmds)
 
         if not found:
-            r_con.send_msg(f"Error:  '{cmd_word}' is not a recognized recognized.")
-            print(f"Error:  '{cmd_word}' is not a recognized recognized.")
+            r_con.send_msg(f"'{cmd_word}' is not a recognized recognized.", prefix='Syntax Error: ')
+            print(f"Error: '{cmd_word}' is not a recognized recognized.")
             return
 
-        print(f"Player command: {cmd_word}:{cmd_arguments}")
+        cmd_type = prog_cmds[index].command_type  # shorthand var for command type like environmental, procedural, etc.
+        print(f"Player command of '{cmd_word}' with arguments of '{cmd_arguments}'")
+
         """Process commands depending on type (e.g., help, environmental, etc. """
-        if prog_cmds[index].command_type == "help":
+        if cmd_type == "help":
             if cmd_arguments:  # user has requested to print help for one or more commands
                 print_help_for_individual_cmds(r_con, prog_cmds, cmd_arguments)
             else:  # otherwise print entire help message
-                r_con.send_msg(help_str)
+                r_con.send_msg(help_str, prefix='')
 
-        elif prog_cmds[index].command_type == "environmental":
-            if mission.arcade_game:
-                r_con.send_msg("Environmental commands not allowed during arcade play.")
-                print("Environmental commands not allowed during arcade play.")
-            else:
-                print("env cmd_arguments: ", cmd_arguments)
-                flag = prog_cmds[index].cmd_method(cmd_arguments)  # all mis.env. methods accept a single string
-                """ Append terminal message to remind user to reset mission to affect environmental changes """
-                if mission.env.mission_files_updated and flag:
-                    mission.env.console_msg += " Reset mission to put environmental changes into effect."
-                r_con.send_msg(f"System: {mission.env.console_msg}")
-                #  if environmental changes have made then resaver.exe needs to run later on mission reset
-                mission.run_resaver = mission.env.mission_files_updated  # an environment file change requires resaver
-                print(f"environmental command message xxx:", mission.env.console_msg)
+        elif cmd_type == "environmental" and not mission.arcade_game:
+            print("env cmd_arguments: ", cmd_arguments)
+            flag = prog_cmds[index].cmd_method(cmd_arguments)  # all mis.env. methods accept a single string
+            """ Append terminal message to remind user to reset mission to affect environmental changes """
+            if mission.env.mission_environment_updated and flag:
+                mission.env.console_msg += " Reset mission to put environmental changes into effect."
+            r_con.send_msg(mission.env.console_msg)
+            #  if environmental changes have made then resaver.exe needs to run later on mission reset
+            mission.run_resaver = mission.env.mission_environment_updated  # an environment file change requires resaver
+            print(f"environmental command message:", mission.env.console_msg)
 
-        elif prog_cmds[index].command_type == "procedural":
+        elif cmd_type == "procedural":
             prog_cmds[index].cmd_method(cmd_arguments)
-            r_con.send_msg(f"System: {mission.console_msg}")  # print to console the resulting msg
+            r_con.send_msg(mission.console_msg)  # print to console the resulting msg
             print(mission.console_msg)
 
         # server command -- send straight to dserver
-        elif prog_cmds[index].command_type == "server_command":
+        elif cmd_type == "server_command" and not mission.arcade_game:
             if cmd_arguments:  # user has requested to print help for one or more commands
-                r_con.send_msg(f"System: Sending to server mission the input command '{cmd_arguments}'.")
+                r_con.send_msg(f"Sending to server mission the input command '{cmd_arguments}'.")
                 r_con.send(f"serverinput {cmd_arguments}")
             else:  # otherwise print entire help message
                 r_con.send_msg(f"Error: {cmd_word} requires an argument.")  # print to console the resulting msg
 
+        # dserver setting handling -- print server vars or toggle server value
+        elif cmd_type == "dserver":
+            if prog_cmds[index].cmd_method == PRINT_DSERVER_VARS:  # print server side variables
+                pstr = f"Server side variables:\n"
+                for s in server_dict.values():
+                    pstr += s.print()
+                r_con.send_msg(pstr)
+            elif not mission.arcade_game:
+                s = server_dict[prog_cmds[index].cmd_method]
+                s.toggle_bool()
+                r_con.send_msg(s.toggle_print())
+                mission.restart_dserver = check_if_server_vars_updated(server_dict)  # true if just one of the server updated var is True
+
+        elif mission.arcade_game and (cmd_type == "dserver" or cmd_type == "environmental" or cmd_type == "server_command"):
+            r_con.send_msg("Environmental or server variable commands are not allowed during arcade play.")
+            print("Environmental or server variable commands are not allowed during arcade play.")
 
         else:
-            print("Error: I should never have gotten here during processing commands.")
+            print("Error: I should never have gotten here during the processing of commands in 'program_commands.py'.")
             exit(-1)
 
-    """ Process three different types of mission resets """
-    if mission.new_mission:  # a new mission is being loaded
+    """
+        Process three different types of mission resets (load_new mission, resaver.exe run, simple user initiated reset).
+        Only send reset to mission running in Dserver if Dserver reboot is not required.
+    """
+    if mission.load_new_mission_flag:  # 1 -- note this will ignore/forget any environmental variables that were previously commanded
         mission.load_new_mission()
-        r_con.send_msg("System: Loading new scenario and resetting....")
-        mission.reset_mission(r_con)
-
-        # read in new mission data to environment
-        mission.env.open_mission_file(mission.mission_filename)
-        mission.env.open_briefing_file(mission.briefing_filename)
-        mission.new_mission = mission.run_resaver = mission.env.mission_files_updated = False  # reset booleans
-        mission.arcade_game = mission.is_current_mission_arcade()
-        if mission.arcade_game:
-            mission.arcade = ArcadeMission(mission.mission_filename, mission.briefing_filename)
-        else:
-            mission.arcade = None
+        if mission.arcade_game:  # check to see if dserver settings are set correctly for arcade game
+            mission.restart_dserver = check_arcade_dserver_setting(server_dict)
+        if not mission.restart_dserver:
+            r_con.send_msg("Loading new scenario and resetting....")
+            mission.reset_mission(r_con)
+            mission.load_new_mission_flag = False
+        mission.run_resaver = mission.env.mission_environment_updated = False  # ignore any of these commands set by player
 
     elif mission.run_resaver and mission.user_initiated_reset:  # 2
-        # save mission and briefing string data to their respective files
+        # save mission and briefing string data to their respective files for resaver.exe processing
         mission.env.write_mission_file(mission.mission_filename)
         mission.env.write_briefing_file(mission.briefing_filename)
 
         mission.resaver(r_con)
-        mission.reset_mission(r_con)
-        mission.run_resaver = mission.user_initiated_reset = mission.env.mission_files_updated = False
+        mission.run_resaver = mission.env.mission_environment_updated = False
+
+        if not mission.restart_dserver:
+            mission.reset_mission(r_con)
+            mission.user_initiated_reset = False
 
     elif mission.user_initiated_reset:  # 3
-        r_con.send_msg("System: Resetting mission....")
-        mission.reset_mission(r_con)
-        mission.user_initiated_reset = False
-
-
+        if not mission.restart_dserver:
+            r_con.send_msg("Resetting mission....")
+            mission.reset_mission(r_con)
+            mission.init_mission_arcade()
+            mission.user_initiated_reset = False
